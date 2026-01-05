@@ -3,6 +3,10 @@ void *state_change_initialize(oparg_T *oap);
 executionStatus_T state_change_execute(void *ctx, int c);
 void state_change_cleanup(void *ctx);
 
+void *state_insert_initialize(oparg_T *oap, long count1);
+executionStatus_T state_insert_execute(void *ctx, int c);
+void state_insert_cleanup(void *ctx);
+
 int get_op_type(int char1, int char2);
 int op_on_lines(int op);
 int op_is_change(int op);

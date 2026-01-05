@@ -2686,6 +2686,239 @@ void state_change_cleanup(void *ctx)
 }
 
 /*
+ * State machine implementation for visual block insert (I) and append (A)
+ * Similar to state_change_* but without deleting text first
+ */
+typedef struct
+{
+  oparg_T *oap;
+  void *editContext;
+  long count1;
+  long pre_textlen;
+  colnr_T ind_pre;
+  struct block_def bd;
+  int is_append;  /* TRUE for OP_APPEND, FALSE for OP_INSERT */
+} insertState_T;
+
+void *state_insert_initialize(oparg_T *oap, long count1)
+{
+  insertState_T *context = (insertState_T *)alloc(sizeof(insertState_T));
+  int i;
+
+  context->oap = oap;
+  context->count1 = count1;
+  context->pre_textlen = 0;
+  context->ind_pre = 0;
+  context->is_append = (oap->op_type == OP_APPEND);
+
+  /* edit() changes this - record it for OP_APPEND */
+  context->bd.is_MAX = (curwin->w_curswant == MAXCOL);
+
+  /* vis block is still marked. Get rid of it now. */
+  curwin->w_cursor.lnum = oap->start.lnum;
+  update_screen(INVERTED);
+
+  if (oap->block_mode)
+  {
+    /* When 'virtualedit' is used, need to insert the extra spaces before
+     * doing block_prep().  When only "block" is used, virtual edit is
+     * already disabled, but still need it when calling
+     * coladvance_force(). */
+    if (curwin->w_cursor.coladd > 0)
+    {
+      int old_ve_flags = ve_flags;
+
+      ve_flags = VE_ALL;
+      if (u_save_cursor() == FAIL)
+      {
+        vim_free(context);
+        return NULL;
+      }
+      coladvance_force(oap->op_type == OP_APPEND ? oap->end_vcol + 1
+                                                 : getviscol());
+      if (oap->op_type == OP_APPEND)
+        --curwin->w_cursor.col;
+      ve_flags = old_ve_flags;
+    }
+    /* Get the info about the block before entering the text */
+    block_prep(oap, &context->bd, oap->start.lnum, TRUE);
+    /* Get indent information */
+    context->ind_pre = (colnr_T)getwhitecols_curline();
+    context->pre_textlen = (long)STRLEN(ml_get(oap->start.lnum) + context->bd.textcol);
+
+    if (oap->op_type == OP_APPEND)
+      context->pre_textlen -= context->bd.textlen;
+
+    /* For OP_INSERT, position cursor at the start of the block */
+    if (oap->op_type == OP_INSERT)
+      curwin->w_cursor.col = context->bd.textcol;
+  }
+
+  if (oap->op_type == OP_APPEND)
+  {
+    if (oap->block_mode && curwin->w_cursor.coladd == 0)
+    {
+      /* Move the cursor to the character right of the block. */
+      curwin->w_set_curswant = TRUE;
+      while (*ml_get_cursor() != NUL &&
+             (curwin->w_cursor.col < context->bd.textcol + context->bd.textlen))
+        ++curwin->w_cursor.col;
+      if (context->bd.is_short && !context->bd.is_MAX)
+      {
+        /* First line was too short, make it longer and adjust the
+         * values in "bd". */
+        if (u_save_cursor() == FAIL)
+        {
+          vim_free(context);
+          return NULL;
+        }
+        for (i = 0; i < context->bd.endspaces; ++i)
+          ins_char(' ');
+        context->bd.textlen += context->bd.endspaces;
+      }
+    }
+    else
+    {
+      curwin->w_cursor = oap->end;
+      check_cursor_col();
+
+      /* Works just like an 'i'nsert on the next character. */
+      if (!LINEEMPTY(curwin->w_cursor.lnum) && oap->start_vcol != oap->end_vcol)
+        inc_cursor();
+    }
+  }
+
+  context->editContext = state_edit_initialize(NUL, FALSE, (linenr_T)count1);
+
+  return (void *)context;
+}
+
+executionStatus_T state_insert_execute(void *ctx, int c)
+{
+  insertState_T *context = (insertState_T *)ctx;
+
+  return state_edit_execute(context->editContext, c);
+}
+
+void state_insert_cleanup(void *ctx)
+{
+  insertState_T *context = (insertState_T *)ctx;
+  char_u *firstline;
+  char_u *ins_text;
+  long ins_len;
+  struct block_def bd2;
+  colnr_T ind_post;
+  int did_indent = FALSE;
+  size_t len;
+  int add;
+
+  state_edit_cleanup(context->editContext);
+
+  /* If user has moved off this line, we don't know what to do, so do
+   * nothing.
+   * Also don't repeat the insert when Insert mode ended with CTRL-C. */
+  if (curwin->w_cursor.lnum != context->oap->start.lnum || got_int)
+  {
+    vim_free(context);
+    return;
+  }
+
+  if (context->oap->block_mode)
+  {
+    /* If indent kicked in, the firstline might have changed
+     * but only do that, if the indent actually increased. */
+    ind_post = (colnr_T)getwhitecols_curline();
+    if (curbuf->b_op_start.col > context->ind_pre && ind_post > context->ind_pre)
+    {
+      context->bd.textcol += ind_post - context->ind_pre;
+      context->bd.start_vcol += ind_post - context->ind_pre;
+      did_indent = TRUE;
+    }
+
+    /* The user may have moved the cursor before inserting something, try
+     * to adjust the block for that.  But only do it, if the difference
+     * does not come from indent kicking in. */
+    if (context->oap->start.lnum == curbuf->b_op_start_orig.lnum &&
+        !context->bd.is_MAX && !did_indent)
+    {
+      if (context->oap->op_type == OP_INSERT &&
+          context->oap->start.col + context->oap->start.coladd !=
+              curbuf->b_op_start_orig.col + curbuf->b_op_start_orig.coladd)
+      {
+        int t = getviscol2(curbuf->b_op_start_orig.col,
+                           curbuf->b_op_start_orig.coladd);
+        context->oap->start.col = curbuf->b_op_start_orig.col;
+        context->pre_textlen -= t - context->oap->start_vcol;
+        context->oap->start_vcol = t;
+      }
+      else if (context->oap->op_type == OP_APPEND &&
+               context->oap->end.col + context->oap->end.coladd >=
+                   curbuf->b_op_start_orig.col +
+                       curbuf->b_op_start_orig.coladd)
+      {
+        int t = getviscol2(curbuf->b_op_start_orig.col,
+                           curbuf->b_op_start_orig.coladd);
+        context->oap->start.col = curbuf->b_op_start_orig.col;
+        /* reset pre_textlen to the value of OP_INSERT */
+        context->pre_textlen += context->bd.textlen;
+        context->pre_textlen -= t - context->oap->start_vcol;
+        context->oap->start_vcol = t;
+        context->oap->op_type = OP_INSERT;
+      }
+    }
+
+    /*
+     * Spaces and tabs in the indent may have changed to other spaces and
+     * tabs.  Get the starting column again and correct the length.
+     * Don't do this when "$" used, end-of-line will have changed.
+     */
+    block_prep(context->oap, &bd2, context->oap->start.lnum, TRUE);
+    if (!context->bd.is_MAX || bd2.textlen < context->bd.textlen)
+    {
+      if (context->oap->op_type == OP_APPEND)
+      {
+        context->pre_textlen += bd2.textlen - context->bd.textlen;
+        if (bd2.endspaces)
+          --bd2.textlen;
+      }
+      context->bd.textcol = bd2.textcol;
+      context->bd.textlen = bd2.textlen;
+    }
+
+    /*
+     * Subsequent calls to ml_get() flush the firstline data - take a
+     * copy of the inserted text.
+     */
+    firstline = ml_get(context->oap->start.lnum);
+    len = STRLEN(firstline);
+    add = context->bd.textcol;
+    if (context->oap->op_type == OP_APPEND)
+      add += context->bd.textlen;
+    if ((size_t)add > len)
+      firstline += len; // short line, point to the NUL
+    else
+      firstline += add;
+    if (context->pre_textlen >= 0 &&
+        (ins_len = (long)STRLEN(firstline) - context->pre_textlen) > 0)
+    {
+      ins_text = vim_strnsave(firstline, (int)ins_len);
+      if (ins_text != NULL)
+      {
+        /* block handled here */
+        if (u_save(context->oap->start.lnum, (linenr_T)(context->oap->end.lnum + 1)) == OK)
+          block_insert(context->oap, ins_text, (context->oap->op_type == OP_INSERT), &context->bd);
+
+        curwin->w_cursor.col = context->oap->start.col;
+        check_cursor();
+        vim_free(ins_text);
+      }
+    }
+  }
+
+  vim_free(context);
+}
+
+/*
  * set all the yank registers to empty (called from main())
  */
 void init_yank(void)

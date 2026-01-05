@@ -1671,8 +1671,12 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
       {
         /* This is a new edit command, not a restart.  Need to
          * remember it to make 'insertmode' work with mappings for
-         * Visual mode.  But do this only once. */
-        restart_edit_save = restart_edit;
+         * Visual mode.  But do this only once and not when typed and
+         * 'insertmode' isn't set. */
+        if (p_im || !KeyTyped)
+          restart_edit_save = restart_edit;
+        else
+          restart_edit_save = 0;
         restart_edit = 0;
 #ifdef FEAT_LINEBREAK
         /* Restore linebreak, so that when the user edits it looks as
@@ -1683,20 +1687,13 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
           get_op_vcol(oap, redo_VIsual_mode, FALSE);
         }
 #endif
-        op_insert(oap, cap->count1);
-#ifdef FEAT_LINEBREAK
-        /* Reset linebreak, so that formatting works correctly. */
-        curwin->w_p_lbr = FALSE;
-#endif
+        /* Reset finish_op now, don't want it set inside edit(). */
+        finish_op = FALSE;
 
-        /* TODO: when inserting in several lines, should format all
-         * the lines. */
-        auto_format(FALSE, TRUE);
-
-        if (restart_edit == 0)
-          restart_edit = restart_edit_save;
-        else
-          cap->retval |= CA_COMMAND_BUSY;
+        sm_push_insert_operator(oap, cap->count1);
+        restart_edit = 0;
+        (void)restart_edit_save;  /* suppress unused variable warning */
+        return;
       }
       break;
 
@@ -6398,7 +6395,6 @@ static void nv_edit(cmdarg_T *cap)
   if (cap->cmdchar == K_INS || cap->cmdchar == K_KINS)
     cap->cmdchar = 'i';
 
-  int was_visual_block = 0;
   /* in Visual mode "A" and "I" are an operator */
   if (VIsual_active && (cap->cmdchar == 'A' || cap->cmdchar == 'I'))
   {
@@ -6411,71 +6407,12 @@ static void nv_edit(cmdarg_T *cap)
       return;
     }
 #endif
-    // Block 'I'insert or 'A'ppend - special case to produce multiple cursors
-    if (VIsual_mode == Ctrl_V)
-    {
-      was_visual_block = 1;
-      int minCol = VIsual.col;
-      if (minCol > curwin->w_cursor.col)
-      {
-        minCol = curwin->w_cursor.col;
-      }
-
-      // If 'A' was used, jump to next character
-      if (cap->cmdchar == 'A')
-      {
-        inc_cursor();
-        minCol = curwin->w_cursor.col;
-      }
-
-      int vcol = getviscol();
-
-      curbuf->b_visual.vi_mode = VIsual_mode;
-      curbuf->b_visual.vi_start = VIsual;
-      curbuf->b_visual.vi_end = curwin->w_cursor;
-
-      int start = VIsual.lnum < curwin->w_cursor.lnum ? VIsual.lnum : curwin->w_cursor.lnum;
-      int end = VIsual.lnum > curwin->w_cursor.lnum ? VIsual.lnum : curwin->w_cursor.lnum;
-
-      int inclusive = curwin->w_cursor.lnum > VIsual.lnum;
-      int stop = inclusive ? end : end + 1;
-      int initial = inclusive ? start : start + 1;
-
-      pos_T originalPos = curwin->w_cursor;
-
-      for (int i = initial; i < stop; i++)
-      {
-        int lnum = i;
-
-        // Try to advance to virtual column
-        curwin->w_cursor.lnum = lnum;
-        curwin->w_cursor.col = 0;
-
-        pos_T pos;
-        pos.lnum = lnum;
-        pos.col = 0;
-        if (getvpos(&pos, vcol))
-        {
-          if (cursorAddCallback != NULL)
-          {
-            cursorAddCallback(pos);
-          }
-        }
-      }
-
-      end_visual_mode();
-      // end_visual_mode may adjust cursor position; but we want to persist it - so restore after.
-      curwin->w_cursor = originalPos;
-      clearop(cap->oap);
-      invoke_edit(cap, FALSE, cap->cmdchar, FALSE);
-    }
-    else
-    {
-      // Not block - default to original Vim behavior:
-      end_visual_mode();
-      clearop(cap->oap);
-      //v_visop(cap);
-    }
+    /* Use standard vim operator mechanism for visual block I/A.
+     * v_visop translates the command and calls nv_operator which
+     * routes through do_pending_operator -> sm_push_insert_operator
+     * to properly repeat inserted text on all selected lines. */
+    v_visop(cap);
+    return;
   }
 
   /* in Visual mode and after an operator "a" and "i" are for text objects */
@@ -6533,7 +6470,7 @@ static void nv_edit(cmdarg_T *cap)
     /* Insert to replace the deleted text with the pasted text. */
     invoke_edit(cap, FALSE, cap->cmdchar, FALSE);
   }
-  else if (!was_visual_block && !checkclearopq(cap->oap))
+  else if (!checkclearopq(cap->oap))
   {
     switch (cap->cmdchar)
     {

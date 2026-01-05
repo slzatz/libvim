@@ -90,6 +90,13 @@ void sm_push_change(oparg_T *oap)
           state_change_cleanup);
 }
 
+void sm_push_insert_operator(oparg_T *oap, long count1)
+{
+  sm_push(INSERT, SM_NONE, state_insert_initialize(oap, count1), state_insert_execute,
+          no_pending_operator,
+          state_insert_cleanup);
+}
+
 /*
  * sm_execute_normal
  *
