@@ -1034,7 +1034,6 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
   oparg_T *oap = cap->oap;
   pos_T old_cursor;
   int empty_region_error;
-  int restart_edit_save;
 #ifdef FEAT_LINEBREAK
   int lbr_saved = curwin->w_p_lbr;
 #endif
@@ -1527,14 +1526,6 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
       }
       else
       {
-        /* This is a new edit command, not a restart.  Need to
-         * remember it to make 'insertmode' work with mappings for
-         * Visual mode.  But do this only once and not when typed and
-         * 'insertmode' isn't set. */
-        if (p_im || !KeyTyped)
-          restart_edit_save = restart_edit;
-        else
-          restart_edit_save = 0;
         restart_edit = 0;
 #ifdef FEAT_LINEBREAK
         /* Restore linebreak, so that when the user edits it looks as
@@ -1548,17 +1539,7 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
         /* Reset finish_op now, don't want it set inside edit(). */
         finish_op = FALSE;
 
-        // TODO: Libvim?
-        /* if (op_change(oap)) /1* will call edit() *1/ */
-        /*   cap->retval |= CA_COMMAND_BUSY; */
-
         sm_push_change(oap);
-        restart_edit = 0;
-
-        // TODO: Libvim?
-        /* TODO: Set this on return? */
-        /* if (restart_edit == 0) */
-        /*   restart_edit = restart_edit_save; */
         return;
       }
       break;
@@ -1669,14 +1650,6 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
       }
       else
       {
-        /* This is a new edit command, not a restart.  Need to
-         * remember it to make 'insertmode' work with mappings for
-         * Visual mode.  But do this only once and not when typed and
-         * 'insertmode' isn't set. */
-        if (p_im || !KeyTyped)
-          restart_edit_save = restart_edit;
-        else
-          restart_edit_save = 0;
         restart_edit = 0;
 #ifdef FEAT_LINEBREAK
         /* Restore linebreak, so that when the user edits it looks as
@@ -1691,8 +1664,6 @@ void do_pending_operator(cmdarg_T *cap, int old_col, int gui_yank)
         finish_op = FALSE;
 
         sm_push_insert_operator(oap, cap->count1);
-        restart_edit = 0;
-        (void)restart_edit_save;  /* suppress unused variable warning */
         return;
       }
       break;
