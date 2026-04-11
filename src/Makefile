@@ -1232,7 +1232,7 @@ NO_ATTR=
 PROTO_FLAGS = -d -E"$(CPP)" $(NO_ATTR)
 
 
-WARN_FLAGS = -Wall -Wno-array-bounds -Wno-unknown-warning-option -Wno-cpp -Wno-pointer-sign -Wno-unused-parameter -Wno-strict-overflow -Wno-return-type -Werror
+WARN_FLAGS = -Wall -Wno-array-bounds -Wno-unknown-warning-option -Wno-cpp -Wno-pointer-sign -Wno-unused-parameter -Wno-strict-overflow -Wno-return-type -Wno-old-style-definition -Wno-incompatible-pointer-types -Wno-compare-distinct-pointer-types -Wno-restrict -Wno-discarded-qualifiers -Werror
 
 ################################################
 ##   no changes required below this line      ##
