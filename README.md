@@ -8,6 +8,26 @@
 > called for a blockwise selection. Read [PATCHES.md](PATCHES.md) before
 > embedding this library, especially if you want the multiple-cursor behavior.
 
+## Building
+
+Use the build scripts in this directory — not the "Compiling" section further
+down this file, which is Onivim's old `esy` workflow, pinned to a 2019-era
+toolchain and cloning the upstream repository:
+
+```bash
+./build-macos.sh      # macOS
+./build-linux.sh      # Linux
+```
+
+No arguments or flags. Each script checks its dependencies, configures the
+checkout with the flags current compilers require, and builds `src/libvim.a`,
+which is what you link against. Pass `--clean` to rebuild from scratch or
+`--tests` to also build and run the API test suite.
+
+Building by hand is possible but fiddly — the macOS `./configure` line needs
+seven `-Wno-error` flags and two Homebrew include paths, and a stale autoconf
+cache will abort a reconfigure. [CLAUDE.md](CLAUDE.md) documents all of it.
+
 ## What is `libvim`?
 
 `libvim` is a fork of [Vim](https://github.com/vim/vim), with the goal of providing a [minimal C-based API](https://github.com/onivim/libvim/blob/master/src/libvim.h), modelling Vim modal editing. It does not include any user interface at all (not even a terminal UI), and is primarily responsible for acting as a fast buffer manipulation engine, faithful to Vim keystrokes. It's still a work-in-progress and there is lots of work left to stabilize.
@@ -52,6 +72,10 @@ The heart of the API is `vimInput` which takes a single key, and is synchronousl
 This library is in active development and we currently make no guarantees about backwards compatibility. Use the API at your own risk.
 
 ## Compiling ##
+
+> **Legacy.** This is Onivim's original `esy` workflow, kept for reference. It
+> pins `esy@0.5.7` and clones `onivim/libvim`. See [Building](#building) above
+> for the current instructions.
 
 ### Install [esy](https://esy.sh/)
 

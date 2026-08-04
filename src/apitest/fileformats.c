@@ -42,7 +42,7 @@ MU_TEST(test_write_crlf_file)
   char_u *tmp = vim_tempname('t', FALSE);
 
   char_u cmd[8192];
-  sprintf(cmd, "w %s", tmp);
+  snprintf((char *)cmd, sizeof(cmd), "w %s", (char *)tmp);
 
   vimExecute(cmd);
 
@@ -64,7 +64,7 @@ MU_TEST(test_write_lf_file)
   char_u *tmp = vim_tempname('t', FALSE);
 
   char_u cmd[8192];
-  sprintf(cmd, "w %s", tmp);
+  snprintf((char *)cmd, sizeof(cmd), "w %s", (char *)tmp);
 
   vimExecute(cmd);
 

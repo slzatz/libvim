@@ -8,6 +8,27 @@ libvim is a headless vim library extracted from vim source code, originally desi
 
 ## Build Commands
 
+Use the build scripts. From the repository root:
+
+```bash
+./build-macos.sh      # macOS
+./build-linux.sh      # Linux
+```
+
+No arguments, no flags. Each script verifies its dependencies, runs
+`./configure` with the correct flags when needed, and builds `src/libvim.a`.
+Re-running is cheap: `./configure` is skipped unless the checkout has never been
+configured or the required flags changed, in which case the stale autoconf cache
+is cleared automatically.
+
+Two options are accepted: `--clean` to discard objects and rebuild from scratch,
+and `--tests` to also build and run the API test suite.
+
+The rest of this section documents what the scripts do, for when something goes
+wrong or you need to build by hand.
+
+### Building by hand
+
 A fresh clone must be configured first. `src/auto/config.h` and
 `src/auto/config.mk` are generated and are not in the repository, so `make`
 alone fails with `no terminal library found` / `checking for tgetent()...
@@ -46,7 +67,40 @@ make libvim.a
 
 Both produce `src/libvim.a`, which is what applications link against.
 
+### Reconfiguring an existing checkout
+
+Re-running `./configure` with different flags in a checkout that was already
+configured fails before it does any work:
+
+```
+configure: error: `CFLAGS' has changed since the previous run:
+configure: error: changes in the environment can compromise the build
+configure: error: run `make distclean' and/or `rm auto/config.cache' and start over
+```
+
+Autoconf caches the previous flags in `src/auto/config.cache` and refuses to
+proceed when they differ. Delete it and configure again:
+
+```bash
+rm -f src/auto/config.cache
+```
+
+This is not hypothetical for this repository: checkouts configured before
+`-Wno-error=implicit-int-float-conversion` was added to the macOS recipe above
+will hit it the first time anyone follows the current instructions. `make` never
+reads `config.cache`, so nothing flags the stale flags until you reconfigure —
+and on clang a full rebuild from such a checkout fails at `evalfunc.c:3751`
+anyway, for the missing flag the reconfigure was meant to add.
+
+`configure` also prints `test: 21.0.0: integer expression expected` twice on
+clang 21. Its GCC-version probe cannot parse clang's version string, so it
+answers "no" to the GCC-3-or-later and `-D_FORTIFY_SOURCE` checks. Cosmetic; it
+does not affect the generated config.
+
 ### Running the API tests
+
+`./build-macos.sh --tests` (or `./build-linux.sh --tests`) builds and runs all
+57 of them and reports pass/fail per test. To run a single test by hand:
 
 ```bash
 cd src
@@ -54,12 +108,21 @@ make apitest/visual_mode.test.exe
 cd apitest && ./visual_mode.test.exe
 ```
 
-Test executables link the library rather than just archiving it, so on macOS
-they also need gettext's lib directory, which the Makefile does not add:
-`make apitest/visual_mode.test.exe EXTRA_LIBS="-L/opt/homebrew/opt/gettext/lib"`
-(otherwise `ld: library 'intl' not found`). The install step of that rule tries
-to copy into `$(DEST_BIN)` and fails harmlessly when it is unset — the `.exe` is
-already built by then. Tests are compiled with ASan and UBSan.
+Tests are compiled with ASan and UBSan. Two things the bare `make` above gets
+wrong, both of which the scripts handle:
+
+- Test executables link the library rather than just archiving it, so on macOS
+  they also need gettext's lib directory, which the Makefile does not add:
+  `EXTRA_LIBS="-L/opt/homebrew/opt/gettext/lib"`, otherwise
+  `ld: library 'intl' not found`.
+- The rule's last step copies the binary into `$(DEST_BIN)`, which defaults to
+  `/bin` and is not writable, so `make` exits non-zero after a successful link.
+  Override it with `DEST_BIN=<writable dir>`.
+
+Keep the suite `-Werror`-clean on current toolchains. `apitest/fileformats.c`
+used `sprintf()`, which the macOS SDK marks deprecated, and that alone broke the
+full-suite build until it was changed to `snprintf()`; prefer the bounded form
+in new tests rather than adding another `-Wno-error` flag.
 
 ### Building Individual Files
 
