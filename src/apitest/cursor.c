@@ -73,6 +73,16 @@ MU_TEST(test_set_cursor_invalid_column)
   mu_check(vimCursorGetColumn() == 5);
 }
 
+#if 0
+/*
+ * The multiple-cursor tests below are disabled in this fork: Visual "I"/"A"
+ * now go through vim's OP_INSERT/OP_APPEND operators instead of reporting one
+ * cursor per block line through cursorAddCallback(), so nothing calls the
+ * callback for a blockwise selection any more.  Kept, rather than deleted, as
+ * the specification of the behavior a multiple-cursor embedder would want.
+ * See PATCHES.md.
+ */
+
 MU_TEST(test_add_cursors_visual_I)
 {
   vimKey("<c-v>");
@@ -233,6 +243,8 @@ MU_TEST(test_add_cursors_eol)
   // Verify we switch to insert mode
   mu_check((vimGetMode() & INSERT) == INSERT);
 }
+#endif
+
 
 MU_TEST_SUITE(test_suite)
 {
@@ -243,12 +255,22 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_set_cursor_invalid_column);
   MU_RUN_TEST(test_set_cursor_doesnt_move_topline);
 
-  MU_RUN_TEST(test_add_cursors_visual_I);
-  MU_RUN_TEST(test_add_cursors_visual_reverse_I);
-  MU_RUN_TEST(test_add_cursors_visual_after);
-  MU_RUN_TEST(test_add_cursors_visual_skip_empty_line);
-  MU_RUN_TEST(test_add_cursors_visual_utf8_vcol);
-  MU_RUN_TEST(test_add_cursors_eol);
+  /*
+   * Disabled: this fork replaced the multiple-cursor handling of Visual
+   * "I"/"A" with vim's own OP_INSERT/OP_APPEND operators, so
+   * cursorAddCallback() is no longer invoked for a blockwise selection and
+   * these six tests cannot pass.  The editing behavior they were a proxy for
+   * is now asserted directly in apitest/visual_mode.c
+   * (test_insert_block_mode_change and friends).
+   * See PATCHES.md - getting multiple cursors back means reverting a354ec4bc.
+   *
+   * MU_RUN_TEST(test_add_cursors_visual_I);
+   * MU_RUN_TEST(test_add_cursors_visual_reverse_I);
+   * MU_RUN_TEST(test_add_cursors_visual_after);
+   * MU_RUN_TEST(test_add_cursors_visual_skip_empty_line);
+   * MU_RUN_TEST(test_add_cursors_visual_utf8_vcol);
+   * MU_RUN_TEST(test_add_cursors_eol);
+   */
 }
 
 int main(int argc, char **argv)

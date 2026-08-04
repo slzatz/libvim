@@ -107,16 +107,18 @@ MU_TEST(test_insert_block_mode)
 /**
  * This test case does a visual block select and then an "I" insert
  * which should insert at the start of each line.
- * this test fails and will be commented out.
+ *
+ * Was disabled ("this test fails") while nv_edit() handled Visual "I"/"A"
+ * with the multiple-cursor callback instead of vim's OP_INSERT operator.
+ * See PATCHES.md - re-enabled now that the operator behavior is back.
  */
 
-/*
 MU_TEST(test_insert_block_mode_change)
 {
   char_u *lines[] = {"line1", "line2", "line3", "line4", "line5"};
   vimBufferSetLines(curbuf, 0, 3, lines, 5);
 
-  vimInput("<c-v>");
+  vimKey("<c-v>");
   vimInput("j");
   vimInput("j");
   vimInput("j");
@@ -127,14 +129,107 @@ MU_TEST(test_insert_block_mode_change)
   vimInput("b");
   vimInput("c");
 
-  vimInput("<esc>");
+  vimKey("<esc>");
 
   char_u *line = vimBufferGetLine(curbuf, 1);
   mu_check(strcmp(line, "abcline1") == 0);
   line = vimBufferGetLine(curbuf, 3);
   mu_check(strcmp(line, "abcline3") == 0);
+  line = vimBufferGetLine(curbuf, 4);
+  mu_check(strcmp(line, "abcline4") == 0);
+  // The block ended at line 4 - line 5 must be untouched.
+  line = vimBufferGetLine(curbuf, 5);
+  mu_check(strcmp(line, "line5") == 0);
 }
-*/
+
+/**
+ * Visual block "A" appends after the right edge of the block on every line.
+ */
+
+MU_TEST(test_append_block_mode_change)
+{
+  char_u *lines[] = {"line1", "line2", "line3", "line4", "line5"};
+  vimBufferSetLines(curbuf, 0, 3, lines, 5);
+
+  vimKey("<c-v>");
+  vimInput("j");
+  vimInput("j");
+
+  vimInput("A");
+
+  vimInput("X");
+
+  vimKey("<esc>");
+
+  char_u *line = vimBufferGetLine(curbuf, 1);
+  mu_check(strcmp(line, "lXine1") == 0);
+  line = vimBufferGetLine(curbuf, 3);
+  mu_check(strcmp(line, "lXine3") == 0);
+  line = vimBufferGetLine(curbuf, 4);
+  mu_check(strcmp(line, "line4") == 0);
+}
+
+/**
+ * Visual block "$A" appends at the end of every line in the block,
+ * however ragged the right edge is.
+ */
+
+MU_TEST(test_append_eol_block_mode_change)
+{
+  char_u *lines[] = {"a", "bbbb", "cc", "line4", "line5"};
+  vimBufferSetLines(curbuf, 0, 3, lines, 5);
+
+  vimKey("<c-v>");
+  vimInput("j");
+  vimInput("j");
+  vimInput("$");
+
+  vimInput("A");
+
+  vimInput("X");
+
+  vimKey("<esc>");
+
+  char_u *line = vimBufferGetLine(curbuf, 1);
+  mu_check(strcmp(line, "aX") == 0);
+  line = vimBufferGetLine(curbuf, 2);
+  mu_check(strcmp(line, "bbbbX") == 0);
+  line = vimBufferGetLine(curbuf, 3);
+  mu_check(strcmp(line, "ccX") == 0);
+  line = vimBufferGetLine(curbuf, 4);
+  mu_check(strcmp(line, "line4") == 0);
+}
+
+/**
+ * A line too short to reach the block's start column is skipped by "I"
+ * (stock vim behavior), but "A" pads it out with spaces.
+ */
+
+MU_TEST(test_insert_block_mode_short_line)
+{
+  char_u *lines[] = {"line1", "ab", "line3", "line4", "line5"};
+  vimBufferSetLines(curbuf, 0, 3, lines, 5);
+
+  vimInput("l");
+  vimInput("l");
+  vimInput("l");
+  vimKey("<c-v>");
+  vimInput("j");
+  vimInput("j");
+
+  vimInput("I");
+
+  vimInput("X");
+
+  vimKey("<esc>");
+
+  char_u *line = vimBufferGetLine(curbuf, 1);
+  mu_check(strcmp(line, "linXe1") == 0);
+  line = vimBufferGetLine(curbuf, 2);
+  mu_check(strcmp(line, "ab") == 0);
+  line = vimBufferGetLine(curbuf, 3);
+  mu_check(strcmp(line, "linXe3") == 0);
+}
 
 /**
  * This test case does a visual block select and then an "c" insert
@@ -279,7 +374,10 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_ctrl_q);
   MU_RUN_TEST(test_ctrl_Q);
   MU_RUN_TEST(test_insert_block_mode);
-  // MU_RUN_TEST(test_insert_block_mode_change);
+  MU_RUN_TEST(test_insert_block_mode_change);
+  MU_RUN_TEST(test_append_block_mode_change);
+  MU_RUN_TEST(test_append_eol_block_mode_change);
+  MU_RUN_TEST(test_insert_block_mode_short_line);
   MU_RUN_TEST(test_change_block_mode_change);
   MU_RUN_TEST(test_in_parentheses);
   MU_RUN_TEST(test_adjust_start_visual_line);

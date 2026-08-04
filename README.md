@@ -1,5 +1,13 @@
 [![Build Status](https://dev.azure.com/onivim/oni2/_apis/build/status/onivim.libvim?branchName=master)](https://dev.azure.com/onivim/oni2/_build/latest?definitionId=4&branchName=master)
 
+> **This is a fork, not stock libvim.** It diverges from
+> [onivim/libvim](https://github.com/onivim/libvim), which is unmaintained —
+> most notably, Visual-mode `I` and `A` behave as vim's operators (blockwise
+> insert/append repeats on every line of the block) instead of reporting
+> multiple cursors through `vimSetCursorAddCallback()`, which is no longer
+> called for a blockwise selection. Read [PATCHES.md](PATCHES.md) before
+> embedding this library, especially if you want the multiple-cursor behavior.
+
 ## What is `libvim`?
 
 `libvim` is a fork of [Vim](https://github.com/vim/vim), with the goal of providing a [minimal C-based API](https://github.com/onivim/libvim/blob/master/src/libvim.h), modelling Vim modal editing. It does not include any user interface at all (not even a terminal UI), and is primarily responsible for acting as a fast buffer manipulation engine, faithful to Vim keystrokes. It's still a work-in-progress and there is lots of work left to stabilize.
