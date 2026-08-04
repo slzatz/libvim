@@ -8,14 +8,58 @@ libvim is a headless vim library extracted from vim source code, originally desi
 
 ## Build Commands
 
-libvim does not use ncurses or any terminal UI libraries. To build:
+A fresh clone must be configured first. `src/auto/config.h` and
+`src/auto/config.mk` are generated and are not in the repository, so `make`
+alone fails with `no terminal library found` / `checking for tgetent()...
+NOT FOUND!`. Configure once per checkout, then `make libvim.a`.
+
+**macOS (Apple Silicon / Homebrew):**
+
+```bash
+brew install ncurses gettext
+cd src
+./configure --disable-selinux --with-tlib=ncurses \
+  CFLAGS="-I/opt/homebrew/opt/ncurses/include -I/opt/homebrew/include \
+    -Wno-error=implicit-function-declaration -Wno-error=implicit-int \
+    -Wno-error=int-conversion -Wno-error=incompatible-function-pointer-types \
+    -Wno-error=unused-but-set-variable -Wno-error=deprecated-non-prototype \
+    -Wno-error=implicit-int-float-conversion" \
+  LDFLAGS="-L/opt/homebrew/opt/ncurses/lib -L/opt/homebrew/lib"
+make libvim.a
+```
+
+Every `-Wno-error` above is load-bearing on current clang, which rejects legacy
+C that this codebase is full of. `-Wno-error=implicit-int-float-conversion` is
+the least obvious: without it the build stops at `evalfunc.c:3751` on
+`VARNUM_MAX`.
+
+**Linux** (Debian/Ubuntu: `libtinfo-dev libacl1-dev`; Arch: `ncurses acl`):
 
 ```bash
 cd src
-make
+./configure --disable-selinux CFLAGS=-fPIC
+make libvim.a
 ```
 
-This produces `libvim.a` which can be linked into applications.
+`-fPIC` so the archive can be linked into a shared object or a Go binary. GCC
+14+ warning suppressions are already in the Makefile's `WARN_FLAGS`.
+
+Both produce `src/libvim.a`, which is what applications link against.
+
+### Running the API tests
+
+```bash
+cd src
+make apitest/visual_mode.test.exe
+cd apitest && ./visual_mode.test.exe
+```
+
+Test executables link the library rather than just archiving it, so on macOS
+they also need gettext's lib directory, which the Makefile does not add:
+`make apitest/visual_mode.test.exe EXTRA_LIBS="-L/opt/homebrew/opt/gettext/lib"`
+(otherwise `ld: library 'intl' not found`). The install step of that rule tries
+to copy into `$(DEST_BIN)` and fails harmlessly when it is unset — the `.exe` is
+already built by then. Tests are compiled with ASan and UBSan.
 
 ### Building Individual Files
 
