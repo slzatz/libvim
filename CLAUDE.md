@@ -148,15 +148,32 @@ ar rv libvim.a objects/normal.o
 
 ### Rebuilding Applications
 
-Applications linking to `libvim.a` (e.g., vimango) may cache the library. To ensure changes take effect:
+After rebuilding `libvim.a`, copy it where the consuming application expects it
+and rebuild normally. For vimango that is the project root, next to `go.mod`:
 
 ```bash
-# For Go applications using cgo
-go build -a ./...  # -a forces rebuild of all packages
+cp src/libvim.a /path/to/vimango/
+cd /path/to/vimango
+CGO_ENABLED=1 go build --tags=fts5
+```
 
-# Or clean the build cache
-go clean -cache
-go build ./...
+**No `-a` and no `go clean -cache` is needed.** Go hashes the contents of
+`libvim.a` into the link action ID, so replacing the archive invalidates the
+cached link and the next ordinary `go build` picks it up. Verified on Go 1.26.2
+(darwin/arm64) by swapping archives that differ only in whether they export
+`sm_push_insert_operator`: building with each in turn produced binaries that
+correctly gained and lost the symbol, while rebuilding twice against an
+unchanged archive returned a byte-identical cached binary.
+
+Avoid `-a` in particular. It does not just relink; it rebuilds the entire
+standard library on every invocation, turning a fast relink into a multi-minute
+one, and it fixes nothing here.
+
+If you do suspect a stale binary, confirm it before reaching for a bigger
+hammer — check whether the symbol you expect is actually linked in:
+
+```bash
+nm ./vimango | grep sm_push_insert_operator
 ```
 
 ## Architecture
