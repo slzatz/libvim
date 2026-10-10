@@ -58,12 +58,21 @@ the least obvious: without it the build stops at `evalfunc.c:3751` on
 
 ```bash
 cd src
-./configure --disable-selinux CFLAGS=-fPIC
+./configure --disable-selinux \
+  CFLAGS="-fPIC -Wno-error=implicit-int -Wno-error=implicit-function-declaration"
 make libvim.a
 ```
 
-`-fPIC` so the archive can be linked into a shared object or a Go binary. GCC
-14+ warning suppressions are already in the Makefile's `WARN_FLAGS`.
+`-fPIC` so the archive can be linked into a shared object or a Go binary. The
+two `-Wno-error` flags are for `./configure`'s probe programs, which GCC 14+
+rejects: without `implicit-int` every terminal-library probe fails and
+configure stops at `checking for tgetent()... NOT FOUND!` even with ncurses
+installed; without `implicit-function-declaration` the SVR4 pty probe fails
+silently and `HAVE_SVR4_PTYS` is missing from `auto/config.h`. With both,
+`config.h` matches a `-fpermissive` configure (verified on GCC 16.2). The
+compile itself needs no extra flags — its GCC 14+ suppressions are in the
+Makefile's `WARN_FLAGS`, and the build is warning-free under `-Werror` on
+GCC 16.
 
 Both produce `src/libvim.a`, which is what applications link against.
 

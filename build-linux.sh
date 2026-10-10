@@ -50,10 +50,16 @@ if ! printf '#include <curses.h>\nint main(void){return 0;}\n' |
 	exit 1
 fi
 
-# -fPIC so the archive can be linked into a shared object or a Go binary. The
-# GCC 14+ warning suppressions already live in the Makefile's WARN_FLAGS, so
-# unlike macOS no -Wno-error flags are needed here.
-WANT_CFLAGS="-fPIC"
+# -fPIC so the archive can be linked into a shared object or a Go binary.
+#
+# The two -Wno-error flags are for ./configure, not the compile (the Makefile's
+# WARN_FLAGS covers that). GCC 14 made implicit int and implicit function
+# declarations hard errors, and configure's probe programs use both. Without
+# the first, every terminal-library probe fails and configure stops with
+# "checking for tgetent()... NOT FOUND!"; without the second, the SVR4 pty
+# probe fails silently and HAVE_SVR4_PTYS is dropped from auto/config.h. With
+# both, config.h matches a -fpermissive configure (verified on GCC 16.2).
+WANT_CFLAGS="-fPIC -Wno-error=implicit-int -Wno-error=implicit-function-declaration"
 
 cd "$SRC"
 

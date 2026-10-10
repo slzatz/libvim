@@ -81,6 +81,14 @@ cat /tmp/f.txt
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,
   needed to build on current toolchains.
+- GCC 16 build fixes: `do_wqall()` (`src/ex_cmds.c`) dropped its `error`
+  counter, dead since libvim replaced vim's exit-status `getout()` with
+  `quitCallback` and fatal under `-Werror=unused-but-set-variable`;
+  `src/Makefile` gained header dependencies for `libvim.o`, `state_machine.o`
+  and `state_insert_literal.o`, without which `make -j` could compile them
+  before `auto/osdef.h` was generated; and `build-linux.sh` passes
+  `-Wno-error=implicit-int -Wno-error=implicit-function-declaration` to
+  `./configure`, whose probes GCC 14+ rejects.
 
 ## Downstream
 

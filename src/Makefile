@@ -3115,6 +3115,10 @@ objects/json.o: json.c vim.h protodef.h auto/config.h feature.h os_unix.h \
  auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
   structs.h regexp.h  alloc.h ex_cmds.h \
  proto.h globals.h
+objects/libvim.o: libvim.c vim.h protodef.h auto/config.h feature.h os_unix.h \
+ auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
+  structs.h regexp.h  alloc.h ex_cmds.h \
+ proto.h globals.h
 objects/list.o: list.c vim.h protodef.h auto/config.h feature.h os_unix.h \
  auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
   structs.h regexp.h  alloc.h ex_cmds.h \
@@ -3204,6 +3208,14 @@ objects/sha256.o: sha256.c vim.h protodef.h auto/config.h feature.h os_unix.h \
   structs.h regexp.h  alloc.h ex_cmds.h \
  proto.h globals.h
 objects/sign.o: sign.c vim.h protodef.h auto/config.h feature.h os_unix.h \
+ auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
+  structs.h regexp.h  alloc.h ex_cmds.h \
+ proto.h globals.h
+objects/state_insert_literal.o: state_insert_literal.c vim.h protodef.h auto/config.h feature.h os_unix.h \
+ auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
+  structs.h regexp.h  alloc.h ex_cmds.h \
+ proto.h globals.h
+objects/state_machine.o: state_machine.c vim.h protodef.h auto/config.h feature.h os_unix.h \
  auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
   structs.h regexp.h  alloc.h ex_cmds.h \
  proto.h globals.h

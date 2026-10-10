@@ -3367,7 +3367,6 @@ void ex_wnext(exarg_T *eap)
 void do_wqall(exarg_T *eap)
 {
   buf_T *buf;
-  int error = 0;
   int save_forceit = eap->forceit;
 
   if (eap->cmdidx == CMD_xall || eap->cmdidx == CMD_wqall)
@@ -3379,7 +3378,6 @@ void do_wqall(exarg_T *eap)
     if (exiting && term_job_running(buf->b_term))
     {
       no_write_message_nobang(buf);
-      ++error;
     }
     else
 #endif
@@ -3393,10 +3391,7 @@ void do_wqall(exarg_T *eap)
 	     * 4. if overwriting is allowed (even after a dialog)
 	     */
       if (not_writing())
-      {
-        ++error;
         break;
-      }
 #ifdef FEAT_BROWSE
       /* ":browse wall": ask for file name if there isn't one */
       if (buf->b_ffname == NULL && cmdmod.browse)
@@ -3405,20 +3400,14 @@ void do_wqall(exarg_T *eap)
       if (buf->b_ffname == NULL)
       {
         semsg(_("E141: No file name for buffer %ld"), (long)buf->b_fnum);
-        ++error;
       }
-      else if (check_readonly(&eap->forceit, buf) || check_overwrite(eap, buf, buf->b_fname, buf->b_ffname,
-                                                                     FALSE) == FAIL)
-      {
-        ++error;
-      }
-      else
+      else if (!check_readonly(&eap->forceit, buf) && check_overwrite(eap, buf, buf->b_fname, buf->b_ffname,
+                                                                      FALSE) != FAIL)
       {
         bufref_T bufref;
 
         set_bufref(&bufref, buf);
-        if (buf_write_all(buf, eap->forceit) == FAIL)
-          ++error;
+        (void)buf_write_all(buf, eap->forceit);
         /* an autocommand may have deleted the buffer */
         if (!bufref_valid(&bufref))
           buf = firstbuf;
