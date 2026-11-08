@@ -1,5 +1,6 @@
 #include "libvim.h"
 #include "minunit.h"
+#include <time.h>
 
 /*
  * Spell checking, restored from upstream vim. These tests drive the engine
@@ -482,6 +483,80 @@ MU_TEST(test_visual_selection_suggestions_and_apply)
   mu_check(!vimVisualIsActive());
 }
 
+/* Suggestions for the "z=" word, as one "|"-joined string; caller frees. */
+static char *suggestionList(void)
+{
+  char_u *bad = NULL;
+  char_u **sugs = NULL;
+  int num = 0;
+  size_t size = 1;
+  char *out;
+
+  if (vimSpellGetSuggestions(&bad, &num, &sugs) != OK)
+    return NULL;
+  for (int i = 0; i < num; i++)
+    size += strlen((char *)sugs[i]) + 1;
+  out = malloc(size);
+  out[0] = NUL;
+  for (int i = 0; i < num; i++)
+  {
+    strcat(out, (char *)sugs[i]);
+    strcat(out, "|");
+    vim_free(sugs[i]);
+  }
+  vim_free(sugs);
+  vim_free(bad);
+  return out;
+}
+
+/* A long run of one letter makes the search explode: uncapped, 12 l's take
+ * minutes. The cap ends it, and is an amount of work rather than a deadline,
+ * so asking twice gives the same list -- which "{n}z=" relies on. */
+MU_TEST(test_suggestion_search_is_capped_and_repeatable)
+{
+  char *lines[] = {"Hello llllllllllll here."};
+
+  vimExecute("set spellsuggest=best,9,timeout:200");
+  setLines(lines, 1);
+  setCursor(1, 6);
+
+  time_t start = time(NULL);
+  char *first = suggestionList();
+  char *second = suggestionList();
+  double secs = difftime(time(NULL), start);
+  printf("  two searches: %.0fs\n  first:  %s\n  second: %s\n", secs, first, second);
+
+  mu_check(first != NULL && second != NULL);
+  mu_check(strcmp(first, second) == 0);
+  /* 2 x 200ms of work on the reference machine; generous for slow ones */
+  mu_check(secs < 30);
+  free(first);
+  free(second);
+  vimExecute("set spellsuggest=best");
+}
+
+MU_TEST(test_capped_search_still_finds_real_words)
+{
+  char *lines[] = {"Hello internationalizaton here."};
+  int num;
+
+  /* uncapped this takes ~20s; capped, the right word still comes first */
+  vimExecute("set spellsuggest=best,9,timeout:1000");
+  setLines(lines, 1);
+  setCursor(1, 6);
+  mu_check(suggestionIndex("internationalizaton", "internationalization", &num) == 1);
+  vimExecute("set spellsuggest=best");
+}
+
+MU_TEST(test_spellsuggest_timeout_option)
+{
+  mu_check(evalEquals("execute('set spellsuggest=best,timeout:0') ==# ''", "1"));
+  mu_check(evalEquals("&spellsuggest", "best,timeout:0"));
+  vimExecute("silent! set spellsuggest=timeout:abc");
+  mu_check(evalEquals("&spellsuggest", "best,timeout:0")); /* rejected, unchanged */
+  vimExecute("set spellsuggest=best");
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
@@ -518,6 +593,9 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_count_z_equals_applies_later_suggestion);
   MU_RUN_TEST(test_plain_z_equals_calls_callback);
   MU_RUN_TEST(test_visual_selection_suggestions_and_apply);
+  MU_RUN_TEST(test_suggestion_search_is_capped_and_repeatable);
+  MU_RUN_TEST(test_capped_search_still_finds_real_words);
+  MU_RUN_TEST(test_spellsuggest_timeout_option);
 }
 
 int main(int argc, char **argv)

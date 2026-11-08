@@ -3176,6 +3176,22 @@ static int sps_flags = SPS_BEST;	/* flags from 'spellsuggest' */
 static int sps_limit = 9999;		/* max nr of suggestions given */
 
 /*
+ * libvim: a bound on the suggestion search.  Its cost grows exponentially with
+ * the length of the bad word: on an Apple M-series Mac "llllllllllll" takes
+ * over two minutes and "antidisestablishmentarianizm" three, and the editor is
+ * frozen meanwhile.  Vim 9 bounds it with 'spellsuggest' "timeout:{msec}"; the
+ * same item is accepted here, but turned into an amount of work rather than a
+ * deadline, so that repeating a search -- the embedder lists suggestions and
+ * then sends "{n}z=" -- always yields the same list and n means the same word.
+ * SUG_WORK_PER_MSEC is the rate measured on an Apple M-series Mac; slower
+ * machines take proportionally longer.  0 means no limit.
+ */
+#define SUG_WORK_PER_MSEC 6	/* units of 1000 search steps per msec */
+static long sps_timeout = 5000;		/* 'spellsuggest' "timeout:", msec */
+static long sug_work_left = 0;		/* budget left in the current search */
+static int sug_out_of_work = FALSE;	/* the current search ran out */
+
+/*
  * Check the 'spellsuggest' option.  Return FAIL if it's wrong.
  * Sets "sps_flags" and "sps_limit".
  */
@@ -3189,6 +3205,7 @@ spell_check_sps(void)
 
     sps_flags = 0;
     sps_limit = 9999;
+    sps_timeout = 5000;
 
     for (p = p_sps; *p != NUL; )
     {
@@ -3208,6 +3225,18 @@ spell_check_sps(void)
 	    f = SPS_FAST;
 	else if (STRCMP(buf, "double") == 0)
 	    f = SPS_DOUBLE;
+	else if (STRNCMP(buf, "timeout:", 8) == 0)
+	{
+	    s = buf + 8;
+	    if (!VIM_ISDIGIT(*s))
+		f = -1;
+	    else
+	    {
+		sps_timeout = getdigits(&s);
+		if (*s != NUL)
+		    f = -1;
+	    }
+	}
 	else if (STRNCMP(buf, "expr:", 5) != 0
 		&& STRNCMP(buf, "file:", 5) != 0)
 	    f = -1;
@@ -3216,6 +3245,7 @@ spell_check_sps(void)
 	{
 	    sps_flags = SPS_BEST;
 	    sps_limit = 9999;
+	    sps_timeout = 5000;
 	    return FAIL;
 	}
 	if (f != 0)
@@ -3836,6 +3866,10 @@ spell_find_suggest(
     if (*badptr == NUL)
 	return;
     hash_init(&su->su_banned);
+
+    /* libvim: one budget for the whole search, see sps_timeout. */
+    sug_out_of_work = FALSE;
+    sug_work_left = sps_timeout * SUG_WORK_PER_MSEC;
 
     su->su_badptr = badptr;
     if (badlen != 0)
@@ -4477,7 +4511,7 @@ suggest_trie_walk(
      * - When a state is done go to the next, set "ts_state".
      * - When all states are tried decrease "depth".
      */
-    while (depth >= 0 && !got_int)
+    while (depth >= 0 && !got_int && !sug_out_of_work)
     {
 	sp = &stack[depth];
 	switch (sp->ts_state)
@@ -5814,6 +5848,9 @@ suggest_trie_walk(
 	    {
 		ui_breakcheck();
 		breakcheckcount = 1000;
+		/* libvim: stop once the search has used up its budget. */
+		if (sug_work_left > 0 && --sug_work_left == 0)
+		    sug_out_of_work = TRUE;
 	    }
 	}
     }

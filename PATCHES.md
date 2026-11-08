@@ -140,6 +140,11 @@ highlighting and its blocking `z=` prompt:
   `vimSetSpellSuggestCallback()` hook instead of the numbered prompt; the
   embedder shows `vimSpellGetSuggestions()` and sends `{n}z=` back. Without a
   callback it beeps.
+- The suggestion search is capped. Its cost is exponential in the word's
+  length (uncapped, `llllllllllll` takes over two minutes), and vim 8.1 had no
+  bound. `'spellsuggest'` accepts vim 9's `timeout:{msec}` (default 5000), but
+  here it is an amount of work rather than a deadline, so a repeated search
+  gives the same list and `{n}z=` applies the suggestion that was shown.
 
 Not restored: spell highlighting in `screen.c` (the embedder draws) and
 Insert-mode spell completion (`FEAT_INS_EXPAND` is off). The per-window `w_s`

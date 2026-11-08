@@ -270,6 +270,15 @@ checker such as hunspell.
     blocking numbered prompt. The embedder shows a menu and sends `{n}z=`,
     which applies suggestion n with undo, `.` and `:spellrepall` support.
     `spell_suggest()` must never be called with a count of 0.
+  - The suggestion search is capped by `'spellsuggest'` `timeout:{msec}`
+    (vim 9's item, which this 8.1-based code lacked), but as a **work budget,
+    not a deadline**: `sps_timeout * SUG_WORK_PER_MSEC` units of 1000 trie-walk
+    steps, counted where `suggest_trie_walk()` already checks for CTRL-C, set
+    once per `spell_find_suggest()`. A deadline would make the list depend on
+    machine load, and `{n}z=` repeats the search, so n could apply a different
+    word than the embedder showed. `SUG_WORK_PER_MSEC` (6) was measured on an
+    Apple M-series Mac; at `timeout:1000`, 19 common and long real
+    misspellings kept their uncapped top three suggestions.
 - **Normal mode**: `]s`, `[s`, `]S`, `[S`, `zg`, `zw`, `zG`, `zW` and
   `zug`/`zuw`/`zuG`/`zuW` work. `zu` needs a third key, which vim read with
   a blocking `plain_vgetc()`; libvim routes it through the previously unused
@@ -285,6 +294,10 @@ checker such as hunspell.
     inside the libvim checkout.
   - a `'spellsuggest'` limit such as `best,9`. The default is the window
     height minus 2 (38 in libvim's default 40-line window).
+  - a `'spellsuggest'` `timeout:`, e.g. `best,9,timeout:1000`. The suggestion
+    search is exponential in the word's length: uncapped, `llllllllllll`
+    takes over two minutes and `antidisestablishmentarianizm` three, with the
+    embedder frozen. The default is vim 9's 5000.
 - **Tests**: `apitest/spell.c` covers the engine, all three API functions and
   the normal-mode commands. It sets `'spellfile'` to a `tempname()` so `zg`
   never writes into `runtime/spell/`.
