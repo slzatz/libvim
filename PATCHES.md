@@ -114,6 +114,51 @@ libvim's insert state, not mapping.
 mappings expanded when enabled (including an ex right-hand side), disabling
 stops expansion, enable is idempotent, and counts and `0` are unaffected.
 
+## Spell checking is back
+
+Commits `3564c5ba2`, `41cb09c3d`, `97fd21f77`, `3b4b34ee5` (Nov 2026).
+
+**Upstream behavior.** libvim removed vim's spell checker in three commits
+(`60046fe02`, `ee5010af6`, `fff5615cb`): `spell.c`, `spellfile.c`, the
+`'spell'` options and every `FEAT_SPELL` block. `has('spell')` is 0, and an
+embedder that wants spell checking has to bring its own (vimango used
+hunspell).
+
+**This fork.** The engine is restored, with an API in place of vim's screen
+highlighting and its blocking `z=` prompt:
+
+- `vimSpellGetErrors(buf, start, end, &n, &errors)` returns the misspellings
+  in a line range as `spellError_T { lnum, col, len, type }`, with byte
+  offsets and `type` one of bad, caps, rare or local. It follows vim's display
+  rules: nothing unless the buffer is shown in a window with `'spell'` set and
+  a dictionary loaded.
+- `]s`, `[s`, `zg`, `zw`, `zG`, `zW` and `zug`/`zuw`/`zuG`/`zuW` work. `zu`
+  needs a third key, which vim read with a blocking `plain_vgetc()`; it now
+  goes through the normal-mode state machine (`NORMAL_THIRD_CHARACTER`, into
+  `cmdarg_T.extra_char`).
+- `{n}z=` applies suggestion n, as in vim. Plain `z=` calls the
+  `vimSetSpellSuggestCallback()` hook instead of the numbered prompt; the
+  embedder shows `vimSpellGetSuggestions()` and sends `{n}z=` back. Without a
+  callback it beeps.
+
+Not restored: spell highlighting in `screen.c` (the embedder draws) and
+Insert-mode spell completion (`FEAT_INS_EXPAND` is off). The per-window `w_s`
+synblock pointer was not brought back either: libvim has no `:ownsyntax`, so
+the spell code uses `w_buffer->b_s` directly.
+
+**Not a breaking change.** Nothing happens until an embedder sets `'spell'`
+and `'spelllang'` and has a dictionary on `'runtimepath'`
+(`runtime/spell/en.utf-8.spl` is in this repo). Set `'spellfile'` explicitly
+before `zg` is used: when it is empty vim writes to the first `spell/`
+directory on `'runtimepath'`, which may be inside this checkout.
+
+**Tests.** `apitest/spell.c`: the engine through `spellbadword()` and
+`spellsuggest()`, `vimSpellGetErrors` (order, byte columns, the capital check
+across line breaks, range clamping, regional words), the normal-mode
+commands including `zg` writing the spellfile, and `{n}z=`, the callback and
+Visual mode for suggestions. See the "Spell Checking Restored" section of
+[CLAUDE.md](CLAUDE.md) for the implementation notes.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,
