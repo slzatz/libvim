@@ -77,6 +77,7 @@ EXTERN TerminalCallback terminalCallback INIT(= NULL);
 EXTERN ToggleCommentsCallback toggleCommentsCallback INIT(= NULL);
 EXTERN VoidCallback stopSearchHighlightCallback INIT(= NULL);
 EXTERN VoidCallback unhandledEscapeCallback INIT(= NULL);
+EXTERN VoidCallback spellSuggestCallback INIT(= NULL);
 EXTERN WindowSplitCallback windowSplitCallback INIT(= NULL);
 EXTERN WindowMovementCallback windowMovementCallback INIT(= NULL);
 EXTERN YankCallback yankCallback INIT(= NULL);

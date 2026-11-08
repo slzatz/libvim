@@ -3152,6 +3152,20 @@ static void nv_zet(cmdarg_T *cap)
                    (nchar == 'G' || nchar == 'W') ? 0 : (int)cap->count1, undo);
   }
   break;
+
+  case '=': /* "z=": suggestions for a badly spelled word  */
+    /* libvim: "{count}z=" applies a suggestion directly.  Plain "z=" would
+     * block on a numbered prompt, so the embedder is asked to show the list
+     * instead (vimSpellGetSuggestions) and send "{count}z=" back. */
+    if (checkclearop(cap->oap))
+      break;
+    if (cap->count0 > 0)
+      spell_suggest((int)cap->count0);
+    else if (spellSuggestCallback != NULL)
+      spellSuggestCallback();
+    else
+      clearopbeep(cap->oap);
+    break;
 #endif
 
   default:

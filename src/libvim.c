@@ -452,6 +452,29 @@ void vimSearchGetHighlights(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
  * Return a window showing "buf" with 'spell' set and a dictionary loaded,
  * preferring the current window, or NULL if there is none.
  */
+void vimSetSpellSuggestCallback(VoidCallback callback)
+{
+  spellSuggestCallback = callback;
+}
+
+int vimSpellGetSuggestions(char_u **badWord, int *num_suggestions, char_u ***suggestions)
+{
+  garray_T ga;
+  int ret = spell_suggest_get(badWord, &ga);
+
+  if (ret == FAIL || ga.ga_len == 0)
+  {
+    ga_clear_strings(&ga);
+    *num_suggestions = 0;
+    *suggestions = NULL;
+    return ret;
+  }
+
+  *num_suggestions = ga.ga_len;
+  *suggestions = (char_u **)ga.ga_data;
+  return OK;
+}
+
 static win_T *spellWindowForBuffer(buf_T *buf)
 {
   win_T *wp;

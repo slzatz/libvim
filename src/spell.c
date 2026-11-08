@@ -3229,6 +3229,135 @@ spell_check_sps(void)
 }
 
 /*
+ * Find the word "z=" works on: in Visual mode the highlighted text, otherwise
+ * the badly spelled word under or after the cursor, or the word under the
+ * cursor.  Moves the cursor to its start and sets "*badlenp" (0 when the
+ * length is not known).  Ends Visual mode when "end_visual" is TRUE.
+ * Returns FAIL (cursor unchanged) when there is no word.
+ */
+    static int
+spell_suggest_find_word(int *badlenp, int end_visual)
+{
+    pos_T	prev_cursor = curwin->w_cursor;
+    char_u	*line;
+    char_u	*p;
+
+    *badlenp = 0;
+    if (VIsual_active)
+    {
+	/* Use the Visually selected text as the bad word.  But reject
+	 * a multi-line selection. */
+	if (curwin->w_cursor.lnum != VIsual.lnum)
+	    return FAIL;
+	*badlenp = (int)curwin->w_cursor.col - (int)VIsual.col;
+	if (*badlenp < 0)
+	    *badlenp = -*badlenp;
+	else
+	    curwin->w_cursor.col = VIsual.col;
+	++*badlenp;
+	if (end_visual)
+	    end_visual_mode();
+    }
+    /* Find the start of the badly spelled word. */
+    else if (spell_move_to(curwin, FORWARD, TRUE, TRUE, NULL) == 0
+	    || curwin->w_cursor.col > prev_cursor.col)
+    {
+	/* No bad word or it starts after the cursor: use the word under the
+	 * cursor. */
+	curwin->w_cursor = prev_cursor;
+	line = ml_get_curline();
+	p = line + curwin->w_cursor.col;
+	/* Backup to before start of word. */
+	while (p > line && spell_iswordp_nmw(p, curwin))
+	    MB_PTR_BACK(line, p);
+	/* Forward to start of word. */
+	while (*p != NUL && !spell_iswordp_nmw(p, curwin))
+	    MB_PTR_ADV(p);
+
+	if (!spell_iswordp_nmw(p, curwin))		/* No word found. */
+	    return FAIL;
+	curwin->w_cursor.col = (colnr_T)(p - line);
+    }
+    return OK;
+}
+
+/*
+ * The number of suggestions "z=" offers: 'lines' - 2 or the number in
+ * 'spellsuggest', whatever is smaller.
+ */
+    static int
+spell_suggest_limit(void)
+{
+    return sps_limit > (int)Rows - 2 ? (int)Rows - 2 : sps_limit;
+}
+
+/*
+ * libvim: get the suggestions "z=" would offer, without changing anything.
+ * "*badwordp" is set to the allocated bad word, and "gap" to the allocated
+ * suggestions, in the order "{count}z=" numbers them (from 1).
+ * Returns FAIL when spell checking is off or there is no word to check.
+ */
+    int
+spell_suggest_get(char_u **badwordp, garray_T *gap)
+{
+    pos_T	prev_cursor = curwin->w_cursor;
+    suginfo_T	sug;
+    suggest_T	*stp;
+    char_u	*line;
+    char_u	*wcopy;
+    int		badlen;
+    int		need_cap;
+    int		i;
+
+    *badwordp = NULL;
+    ga_init2(gap, sizeof(char_u *), 10);
+
+    if (no_spell_checking(curwin))
+	return FAIL;
+    if (spell_suggest_find_word(&badlen, FALSE) == FAIL)
+    {
+	curwin->w_cursor = prev_cursor;
+	return FAIL;
+    }
+
+    need_cap = check_need_cap(curwin->w_cursor.lnum, curwin->w_cursor.col);
+    line = vim_strsave(ml_get_curline());
+    if (line == NULL)
+    {
+	curwin->w_cursor = prev_cursor;
+	return FAIL;
+    }
+
+    spell_find_suggest(line + curwin->w_cursor.col, badlen, &sug,
+				  spell_suggest_limit(), TRUE, need_cap, TRUE);
+
+    *badwordp = vim_strnsave(sug.su_badptr, sug.su_badlen);
+    if (ga_grow(gap, sug.su_ga.ga_len) == OK)
+	for (i = 0; i < sug.su_ga.ga_len; ++i)
+	{
+	    stp = &SUG(sug.su_ga, i);
+
+	    /* As listed by "z=": the suggested word may replace only part of
+	     * the bad word, add the not replaced part. */
+	    wcopy = alloc(stp->st_wordlen + (sug.su_badlen > stp->st_orglen
+				    ? sug.su_badlen - stp->st_orglen : 0) + 1);
+	    if (wcopy == NULL)
+		break;
+	    STRCPY(wcopy, stp->st_word);
+	    if (sug.su_badlen > stp->st_orglen)
+		vim_strncpy(wcopy + stp->st_wordlen,
+				 sug.su_badptr + stp->st_orglen,
+				 sug.su_badlen - stp->st_orglen);
+	    ((char_u **)gap->ga_data)[gap->ga_len++] = wcopy;
+	}
+
+    spell_find_cleanup(&sug);
+    vim_free(line);
+    curwin->w_cursor = prev_cursor;
+    return OK;
+}
+
+/*
  * "z=": Find badly spelled word under or after the cursor.
  * Give suggestions for the properly spelled word.
  * In Visual mode use the highlighted word as the bad word.
@@ -3255,45 +3384,13 @@ spell_suggest(int count)
     if (no_spell_checking(curwin))
 	return;
 
-    if (VIsual_active)
+    if (spell_suggest_find_word(&badlen, TRUE) == FAIL)
     {
-	/* Use the Visually selected text as the bad word.  But reject
-	 * a multi-line selection. */
-	if (curwin->w_cursor.lnum != VIsual.lnum)
-	{
+	if (VIsual_active)
 	    vim_beep(BO_SPELL);
-	    return;
-	}
-	badlen = (int)curwin->w_cursor.col - (int)VIsual.col;
-	if (badlen < 0)
-	    badlen = -badlen;
 	else
-	    curwin->w_cursor.col = VIsual.col;
-	++badlen;
-	end_visual_mode();
-    }
-    /* Find the start of the badly spelled word. */
-    else if (spell_move_to(curwin, FORWARD, TRUE, TRUE, NULL) == 0
-	    || curwin->w_cursor.col > prev_cursor.col)
-    {
-	/* No bad word or it starts after the cursor: use the word under the
-	 * cursor. */
-	curwin->w_cursor = prev_cursor;
-	line = ml_get_curline();
-	p = line + curwin->w_cursor.col;
-	/* Backup to before start of word. */
-	while (p > line && spell_iswordp_nmw(p, curwin))
-	    MB_PTR_BACK(line, p);
-	/* Forward to start of word. */
-	while (*p != NUL && !spell_iswordp_nmw(p, curwin))
-	    MB_PTR_ADV(p);
-
-	if (!spell_iswordp_nmw(p, curwin))		/* No word found. */
-	{
 	    beep_flush();
-	    return;
-	}
-	curwin->w_cursor.col = (colnr_T)(p - line);
+	return;
     }
 
     /* Get the word and its length. */
@@ -3308,10 +3405,7 @@ spell_suggest(int count)
 
     /* Get the list of suggestions.  Limit to 'lines' - 2 or the number in
      * 'spellsuggest', whatever is smaller. */
-    if (sps_limit > (int)Rows - 2)
-	limit = (int)Rows - 2;
-    else
-	limit = sps_limit;
+    limit = spell_suggest_limit();
     spell_find_suggest(line + curwin->w_cursor.col, badlen, &sug, limit,
 							TRUE, need_cap, TRUE);
 
@@ -3409,7 +3503,8 @@ spell_suggest(int count)
 	cmdmsg_rl = FALSE;
 	msg_col = 0;
 #endif
-	/* Ask for choice. */
+	/* Ask for choice.  libvim: unreachable, nv_zet() only calls this
+	 * with a count; plain "z=" goes to spellSuggestCallback. */
 	selected = prompt_for_number(&mouse_used);
 	if (mouse_used)
 	    selected -= lines_left;

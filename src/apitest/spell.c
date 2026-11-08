@@ -332,6 +332,156 @@ MU_TEST(test_zu_with_invalid_key_is_ignored)
   mu_check(cursorAt(1, 6));
 }
 
+static int suggestCallbackCount = 0;
+static void onSpellSuggest(void) { suggestCallbackCount++; }
+
+/* Suggestions for the "z=" word; returns the 1-based index of "want" or 0. */
+static int suggestionIndex(char *expectedBad, char *want, int *num)
+{
+  char_u *bad = NULL;
+  char_u **sugs = NULL;
+  int found = 0;
+
+  *num = -1;
+  if (vimSpellGetSuggestions(&bad, num, &sugs) != OK)
+    return 0;
+  printf("  bad word: |%s|, %d suggestions\n", bad, *num);
+  if (strcmp((char *)bad, expectedBad) != 0)
+    found = -1;
+  for (int i = 0; i < *num; i++)
+  {
+    printf("    %d: %s\n", i + 1, sugs[i]);
+    if (found == 0 && strcmp((char *)sugs[i], want) == 0)
+      found = i + 1;
+    vim_free(sugs[i]);
+  }
+  vim_free(sugs);
+  vim_free(bad);
+  return found;
+}
+
+static void inputCount(int n)
+{
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%d", n);
+  for (char *c = buf; *c; c++)
+  {
+    char key[2] = {*c, 0};
+    vimInput(key);
+  }
+}
+
+MU_TEST(test_suggestions_for_word_under_cursor)
+{
+  char *lines[] = {"Hello wrold here."};
+  int num;
+
+  setLines(lines, 1);
+  setCursor(1, 8);
+  mu_check(suggestionIndex("wrold", "world", &num) > 0);
+  mu_check(cursorAt(1, 8));
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello wrold here.") == 0);
+}
+
+MU_TEST(test_suggestions_respect_spellsuggest_limit)
+{
+  char *lines[] = {"Hello wrold here."};
+  int num;
+
+  vimExecute("set spellsuggest=best,3");
+  setLines(lines, 1);
+  setCursor(1, 6);
+  suggestionIndex("wrold", "world", &num);
+  mu_check(num > 0 && num <= 3);
+  vimExecute("set spellsuggest=best");
+}
+
+MU_TEST(test_suggestions_fail_when_spell_off)
+{
+  char_u *bad = (char_u *)"x";
+  char_u **sugs = NULL;
+  int num = -1;
+
+  vimExecute("set nospell");
+  mu_check(vimSpellGetSuggestions(&bad, &num, &sugs) == FAIL);
+  mu_check(bad == NULL && num == 0 && sugs == NULL);
+}
+
+MU_TEST(test_count_z_equals_applies_suggestion)
+{
+  char *lines[] = {"Hello wrold here."};
+  int num;
+
+  setLines(lines, 1);
+  setCursor(1, 6);
+  int idx = suggestionIndex("wrold", "world", &num);
+  mu_check(idx > 0);
+  inputCount(idx);
+  vimInput("z");
+  vimInput("=");
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello world here.") == 0);
+  mu_check(cursorAt(1, 6));
+
+  vimInput("u");
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello wrold here.") == 0);
+}
+
+MU_TEST(test_count_z_equals_applies_later_suggestion)
+{
+  char *lines[] = {"Hello wrold here."};
+  int num;
+
+  setLines(lines, 1);
+  setCursor(1, 6);
+  int idx = suggestionIndex("wrold", "would", &num);
+  mu_check(idx > 1);
+  inputCount(idx);
+  vimInput("z");
+  vimInput("=");
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello would here.") == 0);
+}
+
+MU_TEST(test_plain_z_equals_calls_callback)
+{
+  char *lines[] = {"Hello wrold here."};
+
+  suggestCallbackCount = 0;
+  vimSetSpellSuggestCallback(&onSpellSuggest);
+  setLines(lines, 1);
+  setCursor(1, 6);
+  vimInput("z");
+  vimInput("=");
+  mu_check(suggestCallbackCount == 1);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello wrold here.") == 0);
+  mu_check(vimGetMode() & NORMAL);
+
+  vimSetSpellSuggestCallback(NULL);
+  vimInput("z");
+  vimInput("=");
+  mu_check(suggestCallbackCount == 1);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello wrold here.") == 0);
+}
+
+MU_TEST(test_visual_selection_suggestions_and_apply)
+{
+  char *lines[] = {"Hello wrold here."};
+  int num;
+
+  setLines(lines, 1);
+  setCursor(1, 6);
+  vimInput("v");
+  vimInput("e");
+  mu_check(vimVisualIsActive());
+  int idx = suggestionIndex("wrold", "world", &num);
+  mu_check(idx > 0);
+  mu_check(vimVisualIsActive());
+  inputCount(idx);
+  vimInput("z");
+  vimInput("=");
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "Hello world here.") == 0);
+  mu_check(!vimVisualIsActive());
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
@@ -360,6 +510,14 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_zW_marks_good_word_bad);
   MU_RUN_TEST(test_zg_writes_spellfile_and_zug_undoes_it);
   MU_RUN_TEST(test_zu_with_invalid_key_is_ignored);
+
+  MU_RUN_TEST(test_suggestions_for_word_under_cursor);
+  MU_RUN_TEST(test_suggestions_respect_spellsuggest_limit);
+  MU_RUN_TEST(test_suggestions_fail_when_spell_off);
+  MU_RUN_TEST(test_count_z_equals_applies_suggestion);
+  MU_RUN_TEST(test_count_z_equals_applies_later_suggestion);
+  MU_RUN_TEST(test_plain_z_equals_calls_callback);
+  MU_RUN_TEST(test_visual_selection_suggestions_and_apply);
 }
 
 int main(int argc, char **argv)

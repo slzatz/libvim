@@ -23,6 +23,7 @@ int spell_iswordp_nmw(char_u *p, win_T *wp);
 int spell_line_needs_cap(win_T *wp, linenr_T lnum);
 int spell_casefold(char_u *str, int len, char_u *buf, int buflen);
 int spell_check_sps(void);
+int spell_suggest_get(char_u **badwordp, garray_T *gap);
 void spell_suggest(int count);
 void ex_spellrepall(exarg_T *eap);
 void spell_suggest_list(garray_T *gap, char_u *word, int maxcount, int need_cap, int interactive);
