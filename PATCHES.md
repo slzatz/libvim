@@ -77,6 +77,43 @@ vim -u NONE -N -es -c 'exe "normal! gg0\<C-v>jjI- \<esc>"' -c 'wq!' /tmp/f.txt
 cat /tmp/f.txt
 ```
 
+## Mappings can be expanded: `vimSetMappingsEnabled()`
+
+**Upstream behavior.** `vimInit()` raises `no_mapping` and `no_zero_mapping`
+once ("We expect the consumer to handle key-bindings and mappings"), so
+`:map`, `:nnoremap` and the rest store their mapping, report it through
+`vimSetInputMapCallback()`, and never expand it. Onivim 2 implemented
+keybindings itself; an embedder without such a layer just gets mappings that
+do nothing. vim's expansion code in `getchar.c` is untouched, and keys from
+`vimInput()`/`vimKey()` already go through `ins_typebuf(..., REMAP_YES)` and
+`vgetc()`, so that one counter is the whole of the block.
+
+**This fork.** `vimSetMappingsEnabled(TRUE)` removes `vimInit`'s raise and
+`vimSetMappingsEnabled(FALSE)` restores it; `vimGetMappingsEnabled()` reports
+the state. The default is unchanged — disabled — so existing embedders see no
+difference. The counters are adjusted by a delta rather than assigned, since
+vim raises and lowers them itself around single keys (CTRL-V, digraphs,
+counts). `vimInit` now *assigns* the baseline of 1 instead of incrementing, so
+calling it more than once (test harnesses do) no longer stacks raises that one
+enable could not undo.
+
+An embedder that sends keys of its own as well as the user's can enable
+mappings only around forwarding a user keystroke — vimango does — so a user's
+`nnoremap s dd` cannot rewrite the embedder's internal `s`.
+
+**Known limits.** Single-key left-hand sides only. A partially matched
+multi-key mapping (`inoremap jk <Esc>`) leaves its first key waiting in the
+typeahead buffer, and `sm_execute()` inserts each later key at offset 0 —
+*ahead* of it — so the pair never completes and the first key is lost.
+Appending instead (offset `typebuf.tb_len`, as `feedkeys()` does) is the likely
+fix, but it changes every input path and has not been tried. Separately,
+`<C-r>` in an insert-mode right-hand side inserts a literal `^R`; that is
+libvim's insert state, not mapping.
+
+**Tests.** `apitest/mapping.c`: not expanded by default, normal and visual
+mappings expanded when enabled (including an ex right-hand side), disabling
+stops expansion, enable is idempotent, and counts and `0` are unaffected.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

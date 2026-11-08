@@ -140,9 +140,104 @@ MU_TEST(test_map_clear)
   mu_check(unmappingCallbackCount == 1);
 };
 
+/* Mapping expansion: off by default, on with vimSetMappingsEnabled(TRUE). */
+
+MU_TEST(test_mapping_not_expanded_by_default)
+{
+  mu_check(vimGetMappingsEnabled() == FALSE);
+  vimExecute("nnoremap Q I- <Esc>");
+  vimInput("Q");
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the first line of a test file") == 0);
+}
+
+MU_TEST(test_normal_mapping_expanded_when_enabled)
+{
+  vimSetMappingsEnabled(TRUE);
+  vimExecute("nnoremap Q I- <Esc>");
+  vimInput("Q");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "- This is the first line of a test file") == 0);
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+}
+
+MU_TEST(test_visual_mapping_with_ex_rhs)
+{
+  vimSetMappingsEnabled(TRUE);
+  vimExecute("xnoremap - :s/^/- /<CR>");
+  vimInput("V");
+  vimInput("j");
+  vimInput("-");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "- This is the first line of a test file") == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 2),
+                  "- This is the second line of a test file") == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 3),
+                  "This is the third line of a test file") == 0);
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+}
+
+MU_TEST(test_disabling_stops_expansion)
+{
+  vimSetMappingsEnabled(TRUE);
+  vimExecute("nnoremap Q I- <Esc>");
+  vimSetMappingsEnabled(FALSE);
+  vimInput("Q");
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the first line of a test file") == 0);
+}
+
+MU_TEST(test_enable_is_idempotent)
+{
+  // Enabling twice must not lower the counters twice, or disabling once
+  // would leave expansion on.
+  vimSetMappingsEnabled(TRUE);
+  vimSetMappingsEnabled(TRUE);
+  vimSetMappingsEnabled(FALSE);
+  vimExecute("nnoremap Q I- <Esc>");
+  vimInput("Q");
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the first line of a test file") == 0);
+}
+
+MU_TEST(test_counts_and_zero_unaffected_when_enabled)
+{
+  // no_zero_mapping exists so the 0 of a count is never mapped; with
+  // nothing mapped, 0 and counts must behave exactly as before.
+  vimSetMappingsEnabled(TRUE);
+  vimInput("w");
+  vimInput("0");
+  vimInput("2");
+  vimInput("x");
+  vimInput("j");
+  vimInput("1");
+  vimInput("0");
+  vimInput("x");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "is is the first line of a test file") == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 2),
+                  "e second line of a test file") == 0);
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
+
+  MU_RUN_TEST(test_mapping_not_expanded_by_default);
+  MU_RUN_TEST(test_normal_mapping_expanded_when_enabled);
+  MU_RUN_TEST(test_visual_mapping_with_ex_rhs);
+  MU_RUN_TEST(test_disabling_stops_expansion);
+  MU_RUN_TEST(test_enable_is_idempotent);
+  MU_RUN_TEST(test_counts_and_zero_unaffected_when_enabled);
 
   MU_RUN_TEST(test_simple_mapping);
   MU_RUN_TEST(test_map_same_keys_multiple_modes);

@@ -654,6 +654,39 @@ void vimSetInputUnmapCallback(InputUnmapCallback callback)
   inputUnmapCallback = callback;
 }
 
+/*
+ * vimInit disables mapping expansion by raising no_mapping and
+ * no_zero_mapping once (upstream expected the embedder to own keybindings).
+ * Re-enabling removes exactly that one raise, and disabling restores it.
+ * The counters are adjusted by a delta, never assigned, because vim raises
+ * and lowers them itself around single keys (CTRL-V, digraphs, counts) and
+ * an assignment would unbalance those.
+ */
+static int mappingsEnabled = FALSE;
+
+void vimSetMappingsEnabled(int enabled)
+{
+  enabled = enabled ? TRUE : FALSE;
+  if (enabled == mappingsEnabled)
+  {
+    return;
+  }
+
+  mappingsEnabled = enabled;
+  if (enabled)
+  {
+    no_mapping--;
+    no_zero_mapping--;
+  }
+  else
+  {
+    no_mapping++;
+    no_zero_mapping++;
+  }
+}
+
+int vimGetMappingsEnabled(void) { return mappingsEnabled; }
+
 void vimSetScrollCallback(ScrollCallback callback)
 {
   scrollCallback = callback;
@@ -673,10 +706,13 @@ void vimInit(int argc, char **argv)
   params.want_full_screen = TRUE;
   params.window_count = -1;
 
-  // We expect the consumer to handle key-bindings and mappings,
-  // so disable mappings:
-  no_mapping++;
-  no_zero_mapping++;
+  // Mapping expansion starts disabled (upstream expected the consumer to
+  // handle key-bindings itself); vimSetMappingsEnabled turns it on. The
+  // baseline is assigned, not incremented, so calling vimInit again (test
+  // harnesses do) leaves exactly one raise for vimSetMappingsEnabled to undo.
+  no_mapping = 1;
+  no_zero_mapping = 1;
+  mappingsEnabled = FALSE;
 
   mch_early_init();
   common_init(&params);
