@@ -448,6 +448,103 @@ void vimSearchGetHighlights(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
   *highlights = ret;
 }
 
+/*
+ * Return a window showing "buf" with 'spell' set and a dictionary loaded,
+ * preferring the current window, or NULL if there is none.
+ */
+static win_T *spellWindowForBuffer(buf_T *buf)
+{
+  win_T *wp;
+
+  if (curwin->w_buffer == buf)
+    return curwin->w_p_spell && *buf->b_s.b_p_spl != NUL && buf->b_s.b_langp.ga_len > 0
+               ? curwin
+               : NULL;
+
+  FOR_ALL_WINDOWS(wp)
+  if (wp->w_buffer == buf && wp->w_p_spell && *buf->b_s.b_p_spl != NUL && buf->b_s.b_langp.ga_len > 0)
+    return wp;
+
+  return NULL;
+}
+
+void vimSpellGetErrors(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
+                       int *num_errors, spellError_T **errors)
+{
+  garray_T ga;
+  win_T *wp;
+  linenr_T lnum;
+
+  *num_errors = 0;
+  *errors = NULL;
+
+  if (buf == NULL || buf->b_ml.ml_mfp == NULL)
+    return;
+  wp = spellWindowForBuffer(buf);
+  if (wp == NULL)
+    return;
+
+  if (start_lnum < 1)
+    start_lnum = 1;
+  if (end_lnum > buf->b_ml.ml_line_count)
+    end_lnum = buf->b_ml.ml_line_count;
+
+  ga_init2(&ga, (int)sizeof(spellError_T), 16);
+
+  for (lnum = start_lnum; lnum <= end_lnum; ++lnum)
+  {
+    /* Decide on the capital check before fetching the line: it reads the
+     * previous line, which would invalidate the pointer ml_get_buf returns. */
+    int need_cap = spell_line_needs_cap(wp, lnum);
+    char_u *line = vim_strsave(ml_get_buf(buf, lnum, FALSE));
+    char_u *p;
+    int capcol;
+
+    if (line == NULL)
+      break;
+
+    /* spell_check() checks for a capital when "capcol" reaches 0 at the
+     * start of a word, so point it at the first non-blank. */
+    capcol = need_cap ? getwhitecols(line) : -1;
+
+    for (p = line; *p != NUL;)
+    {
+      hlf_T attr = HLF_COUNT;
+      int len = spell_check(wp, p, &attr, &capcol, FALSE);
+
+      if (len <= 0)
+        len = (*mb_ptr2len)(p);
+
+      if (attr != HLF_COUNT && ga_grow(&ga, 1) == OK)
+      {
+        spellError_T *err = (spellError_T *)ga.ga_data + ga.ga_len++;
+
+        err->lnum = lnum;
+        err->col = (colnr_T)(p - line);
+        err->len = len;
+        err->type = attr == HLF_SPC   ? SPELL_ERROR_CAPS
+                    : attr == HLF_SPR ? SPELL_ERROR_RARE
+                    : attr == HLF_SPL ? SPELL_ERROR_LOCAL
+                                      : SPELL_ERROR_BAD;
+      }
+
+      p += len;
+      capcol -= len;
+    }
+
+    vim_free(line);
+  }
+
+  if (ga.ga_len == 0)
+  {
+    ga_clear(&ga);
+    return;
+  }
+
+  *num_errors = ga.ga_len;
+  *errors = (spellError_T *)ga.ga_data;
+}
+
 char_u *vimSearchGetPattern(void) { return get_search_pat(); }
 
 void vimSetStopSearchHighlightCallback(VoidCallback callback)

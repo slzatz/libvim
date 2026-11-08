@@ -20,6 +20,7 @@ void close_spellbuf(buf_T *buf);
 void clear_spell_chartab(spelltab_T *sp);
 void init_spell_chartab(void);
 int spell_iswordp_nmw(char_u *p, win_T *wp);
+int spell_line_needs_cap(win_T *wp, linenr_T lnum);
 int spell_casefold(char_u *str, int len, char_u *buf, int buflen);
 int spell_check_sps(void);
 void spell_suggest(int count);

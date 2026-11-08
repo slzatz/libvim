@@ -3537,6 +3537,58 @@ check_need_cap(linenr_T lnum, colnr_T col)
     return need_cap;
 }
 
+/*
+ * libvim: return TRUE if the first word of line "lnum" in the buffer shown in
+ * "wp" must start with a capital, because it is the first line, the previous
+ * line is blank, or the previous line ends a sentence per 'spellcapcheck'.
+ * Like check_need_cap() at column 0, but for any window rather than curwin.
+ */
+    int
+spell_line_needs_cap(win_T *wp, linenr_T lnum)
+{
+    buf_T	*buf = wp->w_buffer;
+    int		need_cap = FALSE;
+    char_u	*line;
+    char_u	*p;
+    colnr_T	endcol;
+    regmatch_T	regmatch;
+
+    if (buf->b_s.b_cap_prog == NULL)
+	return FALSE;
+    if (lnum <= 1)
+	return TRUE;
+
+    line = ml_get_buf(buf, lnum - 1, FALSE);
+    if (*skipwhite(line) == NUL)
+	return TRUE;
+
+    /* Append a space in place of the line break, so that a sentence end at
+     * the end of the line matches 'spellcapcheck'. */
+    line = concat_str(line, (char_u *)" ");
+    if (line == NULL)
+	return FALSE;
+    endcol = (colnr_T)STRLEN(line);
+
+    regmatch.regprog = buf->b_s.b_cap_prog;
+    regmatch.rm_ic = FALSE;
+    p = line + endcol;
+    for (;;)
+    {
+	MB_PTR_BACK(line, p);
+	if (p == line || spell_iswordp_nmw(p, wp))
+	    break;
+	if (vim_regexec(&regmatch, p, 0) && regmatch.endp[0] == line + endcol)
+	{
+	    need_cap = TRUE;
+	    break;
+	}
+    }
+    buf->b_s.b_cap_prog = regmatch.regprog;
+
+    vim_free(line);
+    return need_cap;
+}
+
 
 /*
  * ":spellrepall"

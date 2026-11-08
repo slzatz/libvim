@@ -399,6 +399,32 @@ char_u *vimSearchGetPattern();
 void vimSetStopSearchHighlightCallback(VoidCallback callback);
 
 /***
+ * Spell checking
+ ***/
+
+/*
+ * vimSpellGetErrors
+ *
+ * Find the spelling errors in lines start_lnum..end_lnum (1-based, inclusive)
+ * of "buf". On return "*errors" points to "*num_errors" entries, in order, or
+ * is NULL when there are none; the caller frees the array with vim_free().
+ *
+ * Columns and lengths are in bytes, not characters.
+ *
+ * Like vim's own highlighting, this reports nothing unless the buffer is shown
+ * in a window with 'spell' set and the 'spelllang' dictionaries loaded, e.g.:
+ *
+ *   vimExecute("set runtimepath+=/path/to/runtime"); // contains spell/en.utf-8.spl
+ *   vimExecute("set spelllang=en spell");
+ *
+ * The first word of a line is checked for a capital when the previous line
+ * ends a sentence ('spellcapcheck'). Unlike vim's display, the check does not
+ * look across line breaks for dictionary entries that contain a space.
+ */
+void vimSpellGetErrors(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
+                       int *num_errors, spellError_T **errors);
+
+/***
  * Terminal
  */
 

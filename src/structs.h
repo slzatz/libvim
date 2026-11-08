@@ -2709,6 +2709,30 @@ typedef struct
   pos_T end;
 } searchHighlight_T;
 
+/*
+ * Kinds of spelling error reported by vimSpellGetErrors(). These correspond
+ * to vim's SpellBad, SpellCap, SpellRare and SpellLocal highlight groups.
+ */
+typedef enum
+{
+  SPELL_ERROR_BAD,   /* word not recognized */
+  SPELL_ERROR_CAPS,  /* word should start with a capital */
+  SPELL_ERROR_RARE,  /* word is rarely used */
+  SPELL_ERROR_LOCAL  /* word is only used in another region */
+} spellErrorType_T;
+
+/*
+ * A spelling error found by vimSpellGetErrors(). "col" is the 0-based byte
+ * offset of the word in line "lnum" and "len" its length in bytes.
+ */
+typedef struct
+{
+  linenr_T lnum;
+  colnr_T col;
+  int len;
+  spellErrorType_T type;
+} spellError_T;
+
 /* number of positions supported by matchaddpos() */
 #define MAXPOSMATCH 8
 
