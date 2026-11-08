@@ -109,7 +109,7 @@ does not affect the generated config.
 ### Running the API tests
 
 `./build-macos.sh --tests` (or `./build-linux.sh --tests`) builds and runs all
-57 of them and reports pass/fail per test. To run a single test by hand:
+58 of them and reports pass/fail per test. To run a single test by hand:
 
 ```bash
 cd src
@@ -220,6 +220,7 @@ Visual block `I` (insert) and `A` (append) use the state machine pattern:
 - `src/normal.c` - Normal mode command handling, `do_pending_operator`
 - `src/ops.c` - Operation implementations including visual block insert/change states
 - `src/state_machine.c` - State machine management
+- `src/spell.c`, `src/spellfile.c` - Spell checking engine and `.spl`/`.add` file handling
 - `src/edit.c` - Insert mode handling
 - `src/proto/*.pro` - Function prototypes
 
@@ -242,3 +243,48 @@ Restored standard vim behavior for visual block `I` (insert) and `A` (append) co
 - **Cleanup**: Removed unused `restart_edit_save` variable and related dead code from `do_pending_operator()` in both OP_CHANGE and OP_INSERT/OP_APPEND cases.
 
 - **Breaking change**: The `cursorAddCallback` is no longer called for visual block I/A operations. Applications relying on multi-cursor callbacks for visual block editing will need to adapt to standard vim behavior.
+
+### Spell Checking Restored (2026-11)
+
+Upstream libvim removed vim's spell checking in three commits (`60046fe02`,
+`ee5010af6`, `fff5615cb`). It is back, so embedders no longer need an external
+checker such as hunspell.
+
+- **Engine**: `spell.c`, `spellfile.c` and `spell.h` are restored unchanged,
+  except that the per-window `w_s` pointer was not brought back. libvim has
+  no `:ownsyntax`, so `w_s` always equalled `&w_buffer->b_s`; the spell code
+  uses `wp->w_buffer->b_s.` directly. Do not reintroduce `w_s`.
+- **Not restored**: spell highlighting in `screen.c` (the embedder draws; see
+  `vimSpellGetErrors`) and Insert-mode spell completion (`FEAT_INS_EXPAND` is
+  off; the `ins_compl_*` calls in `spell.c` are stubbed by macros).
+- **API** (`libvim.h`):
+  - `vimSpellGetErrors(buf, start, end, &n, &errors)` returns
+    `spellError_T { lnum, col, len, type }` for a line range. `col` and `len`
+    are **bytes**. `type` is `SPELL_ERROR_BAD`, `_CAPS`, `_RARE` or `_LOCAL`.
+    Like vim's display, it reports nothing unless the buffer is shown in a
+    window with `'spell'` set and a dictionary loaded. The capital check after
+    a sentence end crosses line breaks (`spell_line_needs_cap()`).
+  - `vimSpellGetSuggestions(&badWord, &n, &suggestions)` returns what `z=`
+    would offer, changing nothing.
+  - `vimSetSpellSuggestCallback(cb)`: plain `z=` calls `cb` instead of vim's
+    blocking numbered prompt. The embedder shows a menu and sends `{n}z=`,
+    which applies suggestion n with undo, `.` and `:spellrepall` support.
+    `spell_suggest()` must never be called with a count of 0.
+- **Normal mode**: `]s`, `[s`, `]S`, `[S`, `zg`, `zw`, `zG`, `zW` and
+  `zug`/`zuw`/`zuG`/`zuW` work. `zu` needs a third key, which vim read with
+  a blocking `plain_vgetc()`; libvim routes it through the previously unused
+  `NORMAL_THIRD_CHARACTER` state into `cmdarg_T.extra_char`. Any future
+  three-key normal command can use the same path.
+- **Embedder setup**: dictionaries are found in `spell/` on `'runtimepath'`;
+  this repo ships `runtime/spell/en.utf-8.spl`. Other languages need a
+  `.spl`, which `:mkspell` can build from hunspell `.aff`/`.dic` files (vim's
+  automatic download relies on netrw, which libvim lacks). Set:
+  - `'spelllang'` and `'spell'`, e.g. `set spelllang=en spell`.
+  - `'spellfile'` explicitly before `zg`/`zw` are used. When it is empty vim
+    writes to the first `spell/` directory on `'runtimepath'`, which may be
+    inside the libvim checkout.
+  - a `'spellsuggest'` limit such as `best,9`. The default is the window
+    height minus 2 (38 in libvim's default 40-line window).
+- **Tests**: `apitest/spell.c` covers the engine, all three API functions and
+  the normal-mode commands. It sets `'spellfile'` to a `tempname()` so `zg`
+  never writes into `runtime/spell/`.
