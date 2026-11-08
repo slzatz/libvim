@@ -1402,6 +1402,8 @@ BASIC_SRC = \
 	search.c \
 	sha256.c \
 	sign.c \
+	spell.c \
+	spellfile.c \
 	state_insert_literal.c \
 	state_machine.c \
 	syntax.c \
@@ -1505,6 +1507,8 @@ OBJ_COMMON = \
 	objects/search.o \
 	objects/sha256.o \
 	objects/sign.o \
+	objects/spell.o \
+	objects/spellfile.o \
 	objects/state_insert_literal.o \
 	objects/state_machine.o \
 	objects/syntax.o \
@@ -1629,6 +1633,8 @@ PRO_AUTO = \
 	search.pro \
 	sha256.pro \
 	sign.pro \
+	spell.pro \
+	spellfile.pro \
 	syntax.pro \
 	tag.pro \
 	term.pro \
@@ -2863,6 +2869,12 @@ objects/sha256.o: sha256.c
 
 objects/sign.o: sign.c
 	$(CCC) -o $@ sign.c
+
+objects/spell.o: spell.c
+	$(CCC) -o $@ spell.c
+
+objects/spellfile.o: spellfile.c
+	$(CCC) -o $@ spellfile.c
 
 objects/state_insert_literal.o: state_insert_literal.c
 	$(CCC) -o $@ state_insert_literal.c

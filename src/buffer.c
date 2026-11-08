@@ -849,6 +849,9 @@ free_buffer_stuff(
   {
     clear_wininfo(buf); /* including window-local options */
     free_buf_options(buf, TRUE);
+#ifdef FEAT_SPELL
+    ga_clear(&buf->b_s.b_langp);
+#endif
   }
 #ifdef FEAT_EVAL
   {
@@ -1639,6 +1642,12 @@ void enter_buffer(buf_T *buf)
   if (curbuf->b_kmap_state & KEYMAP_INIT)
     (void)keymap_init();
 #endif
+#ifdef FEAT_SPELL
+  /* May need to set the spell language.  Can only do this after the buffer
+   * has been properly setup. */
+  if (!curbuf->b_help && curwin->w_p_spell && *curbuf->b_s.b_p_spl != NUL)
+    (void)did_set_spelllang(curwin);
+#endif
 #ifdef FEAT_VIMINFO
   curbuf->b_last_used = vim_time();
 #endif
@@ -1998,6 +2007,13 @@ void free_buf_options(
   clear_string_option(&buf->b_p_nf);
 #ifdef FEAT_SEARCHPATH
   clear_string_option(&buf->b_p_sua);
+#endif
+#ifdef FEAT_SPELL
+  clear_string_option(&buf->b_s.b_p_spc);
+  clear_string_option(&buf->b_s.b_p_spf);
+  vim_regfree(buf->b_s.b_cap_prog);
+  buf->b_s.b_cap_prog = NULL;
+  clear_string_option(&buf->b_s.b_p_spl);
 #endif
   clear_string_option(&buf->b_p_ft);
 #if defined(FEAT_SMARTINDENT)

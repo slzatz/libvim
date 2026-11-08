@@ -1016,6 +1016,11 @@ void free_all_mem(void)
   if (!ONE_WINDOW)
     do_cmdline_cmd((char_u *)"only!");
 
+#if defined(FEAT_SPELL)
+  /* Free all spell info. */
+  spell_free_all();
+#endif
+
   // Clear user commands (before deleting buffers).
   ex_comclear(NULL);
 
