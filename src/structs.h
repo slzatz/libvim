@@ -2112,6 +2112,8 @@ typedef struct
   regprog_T *b_cap_prog;    /* program for 'spellcapcheck' */
   char_u *b_p_spf;          /* 'spellfile' */
   char_u *b_p_spl;          /* 'spelllang' */
+  char_u *b_p_spo;          /* 'spelloptions' */
+  unsigned b_p_spo_flags;   /* SPO_ flags from 'spelloptions' */
   int b_cjk;                /* all CJK letters as OK */
 #else
   int dummy;

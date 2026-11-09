@@ -15,6 +15,7 @@ void test_setup(void)
   vimExecute("set runtimepath=../../runtime");
   vimExecute("set spelllang=en");
   vimExecute("set spell");
+  vimExecute("set spelloptions=");
 }
 
 void test_teardown(void) {}
@@ -557,6 +558,78 @@ MU_TEST(test_spellsuggest_timeout_option)
   vimExecute("set spellsuggest=best");
 }
 
+/* 'spelloptions' "noallcaps": unknown words in capitals only are not errors,
+ * for highlighting, ]s/[s and spellbadword() alike. */
+MU_TEST(test_allcaps_flagged_by_default)
+{
+  mu_check(evalEquals("&spelloptions", ""));
+  mu_check(evalEquals("join(spellbadword('the ZXQV report'), '|')", "ZXQV|bad"));
+}
+
+MU_TEST(test_noallcaps_skips_unknown_acronyms)
+{
+  char *lines[] = {"The ZXQV and QZX9 report.", "Zxqv zxqv ZxQV wrold ZXQV's."};
+  int count = -1;
+
+  vimExecute("set spelloptions=noallcaps");
+  setLines(lines, 2);
+  spellError_T *errors = getErrors(&count);
+  /* Line 1 is clean; on line 2 every word has a lower-case letter. */
+  mu_check(count == 5);
+  mu_check(errors[0].lnum == 2 && errors[0].col == 0);
+  mu_check(errors[1].lnum == 2 && errors[1].col == 5);
+  mu_check(errors[2].lnum == 2 && errors[2].col == 10);
+  mu_check(errors[3].lnum == 2 && errors[3].col == 15);
+  mu_check(errors[4].lnum == 2 && errors[4].col == 21);
+  vim_free(errors);
+  mu_check(evalEquals("join(spellbadword('the ZXQV report'), '|')", "|"));
+}
+
+MU_TEST(test_noallcaps_next_error_skips_acronyms)
+{
+  char *lines[] = {"ZXQV here wrold and", "QZXV more."};
+
+  vimExecute("set spelloptions=noallcaps");
+  setLines(lines, 2);
+  setCursor(1, 0);
+  vimInput("]");
+  vimInput("s");
+  mu_check(cursorAt(1, 10));
+  vimInput("]");
+  vimInput("s");
+  mu_check(cursorAt(1, 10)); /* wraps back to the only error */
+  setCursor(2, 9);
+  vimInput("[");
+  vimInput("s");
+  mu_check(cursorAt(1, 10));
+}
+
+MU_TEST(test_noallcaps_does_not_hide_banned_words)
+{
+  char *lines[] = {"The ZXQV report."};
+
+  vimExecute("set spelloptions=noallcaps");
+  setLines(lines, 1);
+  mu_check(errorCount() == 0);
+  setCursor(1, 4);
+  vimInput("z");
+  vimInput("W"); /* mark ZXQV bad, internal word list */
+  mu_check(errorCount() == 1);
+  vimInput("z");
+  vimInput("u");
+  vimInput("W");
+  mu_check(errorCount() == 0);
+}
+
+MU_TEST(test_spelloptions_validation)
+{
+  mu_check(evalEquals("execute('set spelloptions=noallcaps') ==# ''", "1"));
+  vimExecute("silent! set spelloptions=bogus");
+  mu_check(evalEquals("&spelloptions", "noallcaps")); /* rejected, unchanged */
+  vimExecute("set spelloptions=");
+  mu_check(evalEquals("join(spellbadword('the ZXQV report'), '|')", "ZXQV|bad"));
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
@@ -596,6 +669,12 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_suggestion_search_is_capped_and_repeatable);
   MU_RUN_TEST(test_capped_search_still_finds_real_words);
   MU_RUN_TEST(test_spellsuggest_timeout_option);
+
+  MU_RUN_TEST(test_allcaps_flagged_by_default);
+  MU_RUN_TEST(test_noallcaps_skips_unknown_acronyms);
+  MU_RUN_TEST(test_noallcaps_next_error_skips_acronyms);
+  MU_RUN_TEST(test_noallcaps_does_not_hide_banned_words);
+  MU_RUN_TEST(test_spelloptions_validation);
 }
 
 int main(int argc, char **argv)

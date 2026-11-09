@@ -392,6 +392,29 @@ static char_u	*repl_from = NULL;
 static char_u	*repl_to = NULL;
 
 /*
+ * Return TRUE if "word" up to "end" has at least two capital letters and no
+ * lower-case letter, e.g. "NASA", "MP3" or "B2B" ('spelloptions' "noallcaps").
+ * Digits and other non-letters are allowed, so "NASA's" is not all caps.
+ */
+    static int
+spell_word_is_allcaps(char_u *word, char_u *end)
+{
+    char_u	*p;
+    int		c;
+    int		ncaps = 0;
+
+    for (p = word; p < end; MB_PTR_ADV(p))
+    {
+	c = PTR2CHAR(p);
+	if (SPELL_ISUPPER(c))
+	    ++ncaps;
+	else if (SPELL_TOUPPER(c) != c)
+	    return FALSE;	/* a lower-case letter */
+    }
+    return ncaps >= 2;
+}
+
+/*
  * Main spell-checking function.
  * "ptr" points to a character that could be the start of a word.
  * "*attrp" is set to the highlight index for a badly spelled word.  For a
@@ -597,7 +620,13 @@ spell_check(
 	    }
 	}
 
-	if (mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED)
+	if (mi.mi_result == SP_BAD
+		&& (wp->w_buffer->b_s.b_p_spo_flags & SPO_NOALLCAPS)
+		&& spell_word_is_allcaps(ptr, mi.mi_end))
+	    ;	/* 'spelloptions' "noallcaps": an unknown acronym is not an
+		 * error.  Done here so highlighting (vimSpellGetErrors), ]s/[s
+		 * and z= (spell_move_to) all agree. */
+	else if (mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED)
 	    *attrp = HLF_SPB;
 	else if (mi.mi_result == SP_RARE)
 	    *attrp = HLF_SPR;

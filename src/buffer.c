@@ -2014,6 +2014,8 @@ void free_buf_options(
   vim_regfree(buf->b_s.b_cap_prog);
   buf->b_s.b_cap_prog = NULL;
   clear_string_option(&buf->b_s.b_p_spl);
+  clear_string_option(&buf->b_s.b_p_spo);
+  buf->b_s.b_p_spo_flags = 0;
 #endif
   clear_string_option(&buf->b_p_ft);
 #if defined(FEAT_SMARTINDENT)

@@ -663,7 +663,12 @@ EXTERN char_u *p_tal; /* 'tabline' */
 #endif
 #ifdef FEAT_SPELL
 EXTERN char_u *p_sps; /* 'spellsuggest' */
+#ifdef IN_OPTION_C
+static char *(p_spo_values[]) = {"noallcaps", NULL};
 #endif
+#endif
+/* 'spelloptions' flags (synblock_T.b_p_spo_flags) */
+#define SPO_NOALLCAPS 0x001
 EXTERN int p_spr;     /* 'splitright' */
 EXTERN int p_sol;     /* 'startofline' */
 EXTERN char_u *p_su;  /* 'suffixes' */
@@ -900,6 +905,7 @@ enum
   BV_SPC,
   BV_SPF,
   BV_SPL,
+  BV_SPO,
 #endif
   BV_STS
 #ifdef FEAT_SEARCHPATH

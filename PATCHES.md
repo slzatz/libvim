@@ -145,6 +145,15 @@ highlighting and its blocking `z=` prompt:
   bound. `'spellsuggest'` accepts vim 9's `timeout:{msec}` (default 5000), but
   here it is an amount of work rather than a deadline, so a repeated search
   gives the same list and `{n}z=` applies the suggestion that was shown.
+- `'spelloptions'` (`'spo'`, buffer-local, default empty), named after vim
+  9's option but with this fork's own value: `noallcaps` stops an unknown
+  word with two or more capitals and no lower-case letter (`NASA`, `MP3`,
+  `B2B`, but not `NASA's` or `IPv6`) from being an error. Words marked bad
+  with `zw`/`zW` still are. The rule is in `spell_check()`, which every
+  caller goes through, so `vimSpellGetErrors`, `]s`/`[s`, `z=` and
+  `spellbadword()` agree: `]s` never stops on a word the embedder does not
+  highlight. Vim 9's own values (`camel`, `noplainbuffer`) are not
+  implemented and are rejected.
 
 Not restored: spell highlighting in `screen.c` (the embedder draws) and
 Insert-mode spell completion (`FEAT_INS_EXPAND` is off). The per-window `w_s`
@@ -161,7 +170,7 @@ directory on `'runtimepath'`, which may be inside this checkout.
 `spellsuggest()`, `vimSpellGetErrors` (order, byte columns, the capital check
 across line breaks, range clamping, regional words), the normal-mode
 commands including `zg` writing the spellfile, and `{n}z=`, the callback and
-Visual mode for suggestions. See the "Spell Checking Restored" section of
+Visual mode for suggestions, and `'spelloptions'` `noallcaps`. See the "Spell Checking Restored" section of
 [CLAUDE.md](CLAUDE.md) for the implementation notes.
 
 ## Other changes

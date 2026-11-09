@@ -129,6 +129,7 @@
 #define PV_SPC OPT_BUF(BV_SPC)
 #define PV_SPF OPT_BUF(BV_SPF)
 #define PV_SPL OPT_BUF(BV_SPL)
+#define PV_SPO OPT_BUF(BV_SPO)
 #endif
 #define PV_STS OPT_BUF(BV_STS)
 #ifdef FEAT_SEARCHPATH
@@ -297,6 +298,7 @@ static int p_swf;
 static char_u *p_spc;
 static char_u *p_spf;
 static char_u *p_spl;
+static char_u *p_spo;
 #endif
 static long p_ts;
 static long p_tw;
@@ -1848,6 +1850,13 @@ static struct vimoption options[] =
         {"spelllang", "spl", P_STRING | P_ALLOCED | P_VI_DEF | P_ONECOMMA | P_RBUF | P_EXPAND,
 #ifdef FEAT_SPELL
          (char_u *)&p_spl, PV_SPL, {(char_u *)"en", (char_u *)0L}
+#else
+         (char_u *)NULL, PV_NONE, {(char_u *)0L, (char_u *)0L}
+#endif
+         SCTX_INIT},
+        {"spelloptions", "spo", P_STRING | P_ALLOCED | P_VI_DEF | P_ONECOMMA | P_NODUP | P_RBUF,
+#ifdef FEAT_SPELL
+         (char_u *)&p_spo, PV_SPO, {(char_u *)"", (char_u *)0L}
 #else
          (char_u *)NULL, PV_NONE, {(char_u *)0L, (char_u *)0L}
 #endif
@@ -4464,6 +4473,7 @@ void check_buf_options(buf_T *buf)
   check_string_option(&buf->b_s.b_p_spc);
   check_string_option(&buf->b_s.b_p_spf);
   check_string_option(&buf->b_s.b_p_spl);
+  check_string_option(&buf->b_s.b_p_spo);
 #endif
   check_string_option(&buf->b_p_ft);
 #if defined(FEAT_SMARTINDENT)
@@ -5616,6 +5626,12 @@ did_set_string_option(
   else if (varp == &(curwin->w_buffer->b_s.b_p_spc))
   {
     errmsg = compile_cap_prog(&curwin->w_buffer->b_s);
+  }
+  /* 'spelloptions' */
+  else if (varp == &(curwin->w_buffer->b_s.b_p_spo))
+  {
+    if (opt_strings_flags(*varp, p_spo_values, &curwin->w_buffer->b_s.b_p_spo_flags, TRUE) != OK)
+      errmsg = e_invarg;
   }
   /* 'spellsuggest' */
   else if (varp == &p_sps)
@@ -8781,6 +8797,8 @@ get_varp(struct vimoption *p)
     return (char_u *)&(curwin->w_buffer->b_s.b_p_spf);
   case PV_SPL:
     return (char_u *)&(curwin->w_buffer->b_s.b_p_spl);
+  case PV_SPO:
+    return (char_u *)&(curwin->w_buffer->b_s.b_p_spo);
 #endif
   case PV_SW:
     return (char_u *)&(curbuf->b_p_sw);
@@ -9125,6 +9143,8 @@ void buf_copy_options(buf_T *buf, int flags)
       (void)compile_cap_prog(&buf->b_s);
       buf->b_s.b_p_spf = vim_strsave(p_spf);
       buf->b_s.b_p_spl = vim_strsave(p_spl);
+      buf->b_s.b_p_spo = vim_strsave(p_spo);
+      (void)opt_strings_flags(p_spo, p_spo_values, &buf->b_s.b_p_spo_flags, TRUE);
 #endif
       buf->b_p_fp = empty_option;
 #if defined(FEAT_EVAL)
