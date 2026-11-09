@@ -3,7 +3,7 @@
 This repository is a permanent fork of
 [onivim/libvim](https://github.com/onivim/libvim). Upstream is unmaintained and
 nothing here is intended to go back to it, so changes land as ordinary commits
-on `master` rather than as a patch queue.
+on `main` (called `master` until 2026-11-09) rather than as a patch queue.
 
 If you are embedding this library, read this first: one change removes behavior
 that upstream libvim advertises in its public API.
