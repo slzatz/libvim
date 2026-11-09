@@ -190,6 +190,11 @@ Visual mode for suggestions, and `'spelloptions'`. See the "Spell Checking Resto
   before `auto/osdef.h` was generated; and `build-linux.sh` passes
   `-Wno-error=implicit-int -Wno-error=implicit-function-declaration` to
   `./configure`, whose probes GCC 14+ rejects.
+- `src/Makefile` header dependencies for `spell.o` and `spellfile.o`, which the
+  spell-checking restore left out: without them a `structs.h` change rebuilt
+  neither, and `spellfile.o`, still compiled against the old `synblock_T`
+  after `'spelloptions'` added `b_p_spo`, read a NULL `'spellfile'` and
+  crashed on `zg`. A pre-existing build needs `--clean` or this commit.
 
 ## Downstream
 

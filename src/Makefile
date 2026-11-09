@@ -3223,6 +3223,14 @@ objects/sign.o: sign.c vim.h protodef.h auto/config.h feature.h os_unix.h \
  auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
   structs.h regexp.h  alloc.h ex_cmds.h \
  proto.h globals.h
+objects/spell.o: spell.c vim.h protodef.h auto/config.h feature.h os_unix.h \
+ auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
+  structs.h regexp.h  alloc.h ex_cmds.h \
+ proto.h globals.h
+objects/spellfile.o: spellfile.c vim.h protodef.h auto/config.h feature.h os_unix.h \
+ auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
+  structs.h regexp.h  alloc.h ex_cmds.h \
+ proto.h globals.h
 objects/state_insert_literal.o: state_insert_literal.c vim.h protodef.h auto/config.h feature.h os_unix.h \
  auto/osdef.h ascii.h keymap.h term.h macros.h option.h \
   structs.h regexp.h  alloc.h ex_cmds.h \
