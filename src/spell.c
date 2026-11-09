@@ -392,26 +392,43 @@ static char_u	*repl_from = NULL;
 static char_u	*repl_to = NULL;
 
 /*
- * Return TRUE if "word" up to "end" has at least two capital letters and no
- * lower-case letter, e.g. "NASA", "MP3" or "B2B" ('spelloptions' "noallcaps").
- * Digits and other non-letters are allowed, so "NASA's" is not all caps.
+ * Return TRUE if 'spelloptions' says an unknown "word" (up to "end") is not an
+ * error because of its capitals:
+ * - "noallcaps": two or more capitals and no lower-case letter, e.g. "NASA",
+ *   "MP3", "B2B".  Digits and other non-letters don't count either way.
+ * - "nomixedcase": a capital after the first character and a lower-case
+ *   letter, e.g. "iOS", "GitHub", "IPv6", "NASA's", "PDFs".
+ * A word with only its first letter capitalised ("Hello") is neither.
  */
     static int
-spell_word_is_allcaps(char_u *word, char_u *end)
+spell_caps_exempt(win_T *wp, char_u *word, char_u *end)
 {
+    unsigned	flags = wp->w_buffer->b_s.b_p_spo_flags;
     char_u	*p;
     int		c;
     int		ncaps = 0;
+    int		nlower = 0;
+    int		inner_cap = FALSE;	/* a capital after the first char */
 
+    if ((flags & (SPO_NOALLCAPS | SPO_NOMIXEDCASE)) == 0)
+	return FALSE;
     for (p = word; p < end; MB_PTR_ADV(p))
     {
 	c = PTR2CHAR(p);
 	if (SPELL_ISUPPER(c))
+	{
 	    ++ncaps;
+	    if (p > word)
+		inner_cap = TRUE;
+	}
 	else if (SPELL_TOUPPER(c) != c)
-	    return FALSE;	/* a lower-case letter */
+	    ++nlower;
     }
-    return ncaps >= 2;
+    if ((flags & SPO_NOALLCAPS) && ncaps >= 2 && nlower == 0)
+	return TRUE;
+    if ((flags & SPO_NOMIXEDCASE) && inner_cap && nlower > 0)
+	return TRUE;
+    return FALSE;
 }
 
 /*
@@ -620,12 +637,10 @@ spell_check(
 	    }
 	}
 
-	if (mi.mi_result == SP_BAD
-		&& (wp->w_buffer->b_s.b_p_spo_flags & SPO_NOALLCAPS)
-		&& spell_word_is_allcaps(ptr, mi.mi_end))
-	    ;	/* 'spelloptions' "noallcaps": an unknown acronym is not an
-		 * error.  Done here so highlighting (vimSpellGetErrors), ]s/[s
-		 * and z= (spell_move_to) all agree. */
+	if (mi.mi_result == SP_BAD && spell_caps_exempt(wp, ptr, mi.mi_end))
+	    ;	/* 'spelloptions' "noallcaps"/"nomixedcase": not an error.
+		 * Done here so highlighting (vimSpellGetErrors), ]s/[s and z=
+		 * (spell_move_to) all agree. */
 	else if (mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED)
 	    *attrp = HLF_SPB;
 	else if (mi.mi_result == SP_RARE)

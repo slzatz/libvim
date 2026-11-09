@@ -279,9 +279,11 @@ checker such as hunspell.
     word than the embedder showed. `SUG_WORK_PER_MSEC` (6) was measured on an
     Apple M-series Mac; at `timeout:1000`, 19 common and long real
     misspellings kept their uncapped top three suggestions.
-- **`'spelloptions'`** (buffer-local, fork-only value): `noallcaps` makes an
-  unknown word with 2+ capitals and no lower-case letter OK. It is checked in
-  `spell_check()` (`spell_word_is_allcaps()`), only for `SP_BAD` results, so
+- **`'spelloptions'`** (buffer-local, fork-only values): `noallcaps` makes an
+  unknown word with 2+ capitals and no lower-case letter OK; `nomixedcase`
+  one with a capital after its first character and a lower-case letter
+  (`iOS`, `NASA's`). Checked in `spell_check()` (`spell_caps_exempt()`), only
+  for `SP_BAD` results, so
   `zW`-banned words still show and every caller (`vimSpellGetErrors`,
   `spell_move_to` for `]s`/`[s`/`z=`, `spellbadword()`) agrees. Any further
   "don't flag this kind of word" rule belongs there too, as another value.

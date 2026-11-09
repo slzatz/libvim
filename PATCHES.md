@@ -146,10 +146,15 @@ highlighting and its blocking `z=` prompt:
   here it is an amount of work rather than a deadline, so a repeated search
   gives the same list and `{n}z=` applies the suggestion that was shown.
 - `'spelloptions'` (`'spo'`, buffer-local, default empty), named after vim
-  9's option but with this fork's own value: `noallcaps` stops an unknown
-  word with two or more capitals and no lower-case letter (`NASA`, `MP3`,
-  `B2B`, but not `NASA's` or `IPv6`) from being an error. Words marked bad
-  with `zw`/`zW` still are. The rule is in `spell_check()`, which every
+  9's option but with this fork's own values. Each stops a kind of unknown
+  word from being an error; words marked bad with `zw`/`zW` still are.
+  - `noallcaps`: two or more capitals and no lower-case letter (`NASA`,
+    `MP3`, `B2B`).
+  - `nomixedcase`: a capital after the first character and a lower-case
+    letter (`iOS`, `GitHub`, `IPv6`, `NASA's`, `PDFs`). It also passes a
+    Shift typo such as `THe`, which can't be told from `IDs` by shape.
+
+  A word capitalised only at its start (`Smith`) is checked as usual. The rule is in `spell_check()`, which every
   caller goes through, so `vimSpellGetErrors`, `]s`/`[s`, `z=` and
   `spellbadword()` agree: `]s` never stops on a word the embedder does not
   highlight. Vim 9's own values (`camel`, `noplainbuffer`) are not
@@ -170,7 +175,7 @@ directory on `'runtimepath'`, which may be inside this checkout.
 `spellsuggest()`, `vimSpellGetErrors` (order, byte columns, the capital check
 across line breaks, range clamping, regional words), the normal-mode
 commands including `zg` writing the spellfile, and `{n}z=`, the callback and
-Visual mode for suggestions, and `'spelloptions'` `noallcaps`. See the "Spell Checking Restored" section of
+Visual mode for suggestions, and `'spelloptions'`. See the "Spell Checking Restored" section of
 [CLAUDE.md](CLAUDE.md) for the implementation notes.
 
 ## Other changes

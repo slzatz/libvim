@@ -621,11 +621,57 @@ MU_TEST(test_noallcaps_does_not_hide_banned_words)
   mu_check(errorCount() == 0);
 }
 
+MU_TEST(test_mixedcase_flagged_without_option)
+{
+  vimExecute("set spelloptions=noallcaps");
+  mu_check(evalEquals("join(spellbadword('the zXqv report'), '|')", "zXqv|bad"));
+}
+
+MU_TEST(test_nomixedcase_skips_mixed_case_words)
+{
+  char *lines[] = {"The zXqv ZxQv ZXqv's QZXVs ZqxV9 here.", "Zxqv zxqv ZXQV wrold."};
+  int count = -1;
+
+  vimExecute("set spelloptions=nomixedcase");
+  setLines(lines, 2);
+  spellError_T *errors = getErrors(&count);
+  /* Line 1 is clean. On line 2 a capital only at the start (Zxqv), none at
+   * all (zxqv) and, without noallcaps, all capitals (ZXQV) are still errors. */
+  mu_check(count == 4);
+  mu_check(errors[0].lnum == 2 && errors[0].col == 0);
+  mu_check(errors[1].lnum == 2 && errors[1].col == 5);
+  mu_check(errors[2].lnum == 2 && errors[2].col == 10);
+  mu_check(errors[3].lnum == 2 && errors[3].col == 15);
+  vim_free(errors);
+
+  vimExecute("set spelloptions=noallcaps,nomixedcase");
+  errors = getErrors(&count);
+  mu_check(count == 3); /* ZXQV is now OK too */
+  mu_check(errors[2].col == 15);
+  vim_free(errors);
+}
+
+MU_TEST(test_nomixedcase_next_error_skips_them)
+{
+  char *lines[] = {"zXqv here wrold and", "GiTzxq more."};
+
+  vimExecute("set spelloptions=nomixedcase");
+  setLines(lines, 2);
+  setCursor(1, 0);
+  vimInput("]");
+  vimInput("s");
+  mu_check(cursorAt(1, 10));
+  vimInput("]");
+  vimInput("s");
+  mu_check(cursorAt(1, 10));
+}
+
 MU_TEST(test_spelloptions_validation)
 {
   mu_check(evalEquals("execute('set spelloptions=noallcaps') ==# ''", "1"));
   vimExecute("silent! set spelloptions=bogus");
   mu_check(evalEquals("&spelloptions", "noallcaps")); /* rejected, unchanged */
+  mu_check(evalEquals("execute('set spelloptions=noallcaps,nomixedcase') ==# ''", "1"));
   vimExecute("set spelloptions=");
   mu_check(evalEquals("join(spellbadword('the ZXQV report'), '|')", "ZXQV|bad"));
 }
@@ -674,6 +720,9 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_noallcaps_skips_unknown_acronyms);
   MU_RUN_TEST(test_noallcaps_next_error_skips_acronyms);
   MU_RUN_TEST(test_noallcaps_does_not_hide_banned_words);
+  MU_RUN_TEST(test_mixedcase_flagged_without_option);
+  MU_RUN_TEST(test_nomixedcase_skips_mixed_case_words);
+  MU_RUN_TEST(test_nomixedcase_next_error_skips_them);
   MU_RUN_TEST(test_spelloptions_validation);
 }
 

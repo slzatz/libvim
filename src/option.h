@@ -664,11 +664,12 @@ EXTERN char_u *p_tal; /* 'tabline' */
 #ifdef FEAT_SPELL
 EXTERN char_u *p_sps; /* 'spellsuggest' */
 #ifdef IN_OPTION_C
-static char *(p_spo_values[]) = {"noallcaps", NULL};
+static char *(p_spo_values[]) = {"noallcaps", "nomixedcase", NULL};
 #endif
 #endif
 /* 'spelloptions' flags (synblock_T.b_p_spo_flags) */
 #define SPO_NOALLCAPS 0x001
+#define SPO_NOMIXEDCASE 0x002
 EXTERN int p_spr;     /* 'splitright' */
 EXTERN int p_sol;     /* 'startofline' */
 EXTERN char_u *p_su;  /* 'suffixes' */
