@@ -6,6 +6,13 @@ This file provides guidance to Claude when working with code in this repository.
 
 libvim is a headless vim library extracted from vim source code, originally designed for Onivim. It provides vim editing functionality without any TUI elements, using a state machine architecture for non-blocking operation.
 
+**This repository is a permanent fork** of onivim/libvim, which is unmaintained; nothing goes back upstream, and changes are ordinary commits on `main`. Working rules:
+
+- **[PATCHES.md](PATCHES.md) is the list of everything that diverges from upstream**, written for someone embedding the library. A change in behavior or API gets a section there (upstream behavior, this fork, what to do if you relied on the old behavior, tests), and a test in `src/apitest/`. The sections below are the notes for someone *changing* this tree.
+- **The consumer is [vimango](https://github.com/slzatz/vimango)**, which may not be the only one: a change must leave an embedder that asks for nothing new unaffected. New behavior is opt-in (`vimSetMappingsEnabled`, `vimSetFileWritesEnabled`, an option value).
+- vimango builds its `libvim.a` from this repository's *pushed* `main` (its `scripts/build-libvim.sh` pulls, and refuses a checkout with uncommitted changes), and keeps a copy of `src/libvim.h` and the other headers its binding compiles against. A change to `libvim.h` or `vim.h` has to be copied there.
+- **An object file needs its header dependencies listed** in the generated `### Dependencies:` section of `src/Makefile`. Without them a header change does not rebuild it, and the stale object links: `spellfile.o`, compiled against an old `structs.h`, crashed on `zg`. If a header change seems not to take effect, build with `--clean`.
+
 ## Build Commands
 
 Use the build scripts. From the repository root:
@@ -230,7 +237,33 @@ libvim was designed for Onivim which handles multi-cursor editing externally. Th
 
 For applications that need standard vim visual block behavior (text replicated on escape), the state machine approach (`sm_push_insert_operator`) provides non-blocking operation while maintaining vim semantics.
 
-## Recent Changes
+## Known gaps
+
+None of these is started.
+
+- **A typed `/pattern`: the wrap warning on the closing `<cr>` is unreliable.** libvim searches again from where the incremental search left the cursor, so it can report a wrap that did not happen and miss one that did. `n`, `N`, `*` and `#` are right. vimango drops the warning for that one key.
+- **Commands that list nothing.** `:registers`, `:history`, `:messages`, `:version` and a bare `:map` send no output to the message callback.
+- **A bare `:let` never returns.** It lists every variable and waits, inside the call, for a key to page with. vimango refuses it. Anything else that pages its output is suspect.
+- **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
+- **`:s` with the `c` flag** has no prompt to confirm with.
+- **A multi-key mapping left-hand side loses its first key** (`inoremap jk <Esc>`): `sm_execute()` inserts each later key at offset 0 of the typeahead buffer, ahead of the one waiting. Appending instead (offset `typebuf.tb_len`, as `feedkeys()` does) is the likely fix; it changes every input path and has not been tried. `<C-r>` in an insert-mode right-hand side inserts a literal `^R`.
+- `vimSetCursorAddCallback()` and its global still exist and are wired up in `libvim.c`; nothing calls them for a blockwise `I`/`A` any more.
+
+## What this fork changed
+
+The whole account is in PATCHES.md. Here: what to know when working on each.
+
+### Mappings (2026-11)
+
+`vimInit` raises `no_mapping` and `no_zero_mapping` so that `:map` stores and never expands; `vimSetMappingsEnabled(TRUE)` lowers them. The counters are adjusted by a delta, never assigned, because vim raises and lowers them itself around single keys (CTRL-V, digraphs, counts) — except in `vimInit`, which assigns the baseline of 1 so that calling it again (test harnesses do) does not stack raises. Tests: `apitest/mapping.c`.
+
+### Search highlights (2026-11)
+
+`vimSearchGetHighlights()` returns every match: the search accepts a match at its starting position on the first call and whenever it resumes at the end of a non-empty match, and moves on first only after an empty one (`^`), so it cannot loop. `vimSearchGetHighlightEnabled()` is vim's own `v:hlsearch`; an embedder asks it rather than tracking `/`, `n` and `:noh`. Tests: `apitest/search_highlights.c`, `search_large_file.c`.
+
+### Messages (2026-11)
+
+`msg_attr_keep()`, where `msg()`, `smsg()`, `msg_attr()` and `give_warning()` all end up, sends the message to the callback (`MSG_INFO`, or `MSG_WARNING` from `give_warning()`), whole, and not at all under `:silent`. An error is sent once, as `MSG_ERROR`, by `emsg_core()`; its second pass through the display path is skipped. `set_keep_msg()` keeps nothing: with no redraw a kept message stayed set, and `msgmore()` then held back the next "N more lines". A command that should say something and does not is probably writing with `msg_puts()` and friends, which still end in a `TODO` (see "Known gaps"). Tests: `apitest/messages_reports.c`.
 
 ### Visual Block I/A Fix (2026-01)
 
