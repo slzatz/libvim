@@ -24,7 +24,10 @@ MU_TEST(test_search_in_large_file)
   searchHighlight_T *highlights;
   vimSearchGetHighlights(curbuf, 0, 0, &num, &highlights);
   vim_free(highlights);
-  mu_check(num == 15420);
+  /* The file has 16405 lower-case e's (grep -o e | wc -l). This expected
+   * 15420 while vimSearchGetHighlights skipped any match starting within
+   * two columns of the end of the previous one ("ee", "e e"). */
+  mu_check(num == 16405);
 }
 
 MU_TEST_SUITE(test_suite)

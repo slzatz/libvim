@@ -178,6 +178,38 @@ commands including `zg` writing the spellfile, and `{n}z=`, the callback and
 Visual mode for suggestions, and `'spelloptions'`. See the "Spell Checking Restored" section of
 [CLAUDE.md](CLAUDE.md) for the implementation notes.
 
+## Search highlights: every match, and whether to show them
+
+Nov 2026.
+
+**Upstream behavior.** `vimSearchGetHighlights()` walked the buffer with
+`searchit()`, which looks for a match *after* the position it is given, as `n`
+does from the cursor. It started at column 0 of `start_lnum` and resumed one
+column past the end of each match, so it left out a match at the very first
+column of `start_lnum` and any match starting where the previous one ended or
+one column later: in `foo foo foo` it returned the first and third `foo`, in
+`foofoofoo` the first and third, for `/o` one `o` of each `oo`. An embedder
+drawing highlights from it showed every other match. `apitest/search_large_file.c`
+had the miscount as its expected value: 15420 matches of `e` in a file with
+16405.
+
+**This fork.** Every match is returned. The search accepts a match at its
+starting position (`SEARCH_START`) on the first call and whenever it resumes at
+the end of a non-empty match; only after an empty match (`^`) does it move on
+first, so it cannot loop. `start_lnum` 0 still means the first line.
+
+`vimSearchGetHighlightEnabled()` is new: TRUE when `'hlsearch'` is set and
+`:nohlsearch` has not hidden the matches since the last search command — vim's
+own state, what `v:hlsearch` reports. The matches are returned regardless, so
+an embedder asks this to decide whether to draw them, instead of tracking `/`,
+`n`, `*` and `:noh` itself.
+
+**If you relied on the old behavior.** Counts from `vimSearchGetHighlights()`
+go up wherever matches sit close together. Nothing is removed.
+
+Tests: `apitest/search_highlights.c` (`test_adjacent_and_first_column_highlights`,
+`test_highlight_enabled`), `apitest/search_large_file.c`.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

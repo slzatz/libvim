@@ -368,16 +368,17 @@ void vimSearchGetHighlights(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
                             int *num_highlights,
                             searchHighlight_T **highlights)
 {
-
-  int v = 1;
   int count = 0;
+  int first = TRUE;
+  int accept_at_start = TRUE;
 
   pos_T lastPos;
   pos_T startPos;
   pos_T endPos;
 
-  startPos.lnum = start_lnum;
+  startPos.lnum = start_lnum < 1 ? 1 : start_lnum;
   startPos.col = 0;
+  startPos.coladd = 0;
   lastPos = startPos;
 
   char_u *pattern = get_search_pat();
@@ -392,18 +393,36 @@ void vimSearchGetHighlights(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
   shlNode_T *head = ALLOC_CLEAR_ONE(shlNode_T);
   shlNode_T *cur = head;
 
-  while (v == 1)
+  for (;;)
   {
-    v = searchit(NULL, buf, &startPos, &endPos, FORWARD, pattern, 1,
-                 SEARCH_KEEP, RE_SEARCH, end_lnum, NULL, NULL);
+    /*
+     * searchit() looks for a match *after* the position it is given, the way
+     * "n" does from the cursor, unless SEARCH_START says a match at the
+     * position itself counts. The first search needs that, or a match at the
+     * very start of start_lnum is passed over; and so does every search that
+     * resumes at the end of a match, or a match starting where the last one
+     * ended, or one column later ("foofoo", "foo foo"), is passed over too.
+     * Only after an empty match (a pattern like "^") must the search move on
+     * from the position, or it would find the same empty match forever.
+     */
+    int flags = SEARCH_KEEP | (accept_at_start ? SEARCH_START : 0);
+    int v = searchit(NULL, buf, &startPos, &endPos, FORWARD, pattern, 1,
+                     flags, RE_SEARCH, end_lnum, NULL, NULL);
 
     if (v == 0)
     {
       break;
     }
 
+    /* A match before the previous one means the search wrapped around; one
+     * at the same place means it is not moving. Either way we are done. */
     if (startPos.lnum < lastPos.lnum ||
-        (startPos.lnum == lastPos.lnum && startPos.col <= lastPos.col))
+        (startPos.lnum == lastPos.lnum &&
+         (first ? startPos.col < lastPos.col : startPos.col <= lastPos.col)))
+    {
+      break;
+    }
+    if (end_lnum > 0 && startPos.lnum > end_lnum)
     {
       break;
     }
@@ -418,11 +437,17 @@ void vimSearchGetHighlights(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
     cur->highlight.end.col = endPos.col;
 
     lastPos = startPos;
+    accept_at_start = (endPos.lnum != startPos.lnum || endPos.col != startPos.col);
     startPos = endPos;
-    startPos.col = startPos.col + 1;
+    first = FALSE;
     count++;
   }
 
+  if (count == 0)
+  {
+    vim_free(head);
+    return;
+  }
   if (count == 0)
   {
     vim_free(head);
@@ -569,6 +594,11 @@ void vimSpellGetErrors(buf_T *buf, linenr_T start_lnum, linenr_T end_lnum,
 }
 
 char_u *vimSearchGetPattern(void) { return get_search_pat(); }
+
+int vimSearchGetHighlightEnabled(void)
+{
+  return p_hls && !no_hlsearch;
+}
 
 void vimSetStopSearchHighlightCallback(VoidCallback callback)
 {
