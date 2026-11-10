@@ -90,6 +90,27 @@ MU_TEST(test_substitute_reports_count)
   mu_check(strcmp(lastMessage, "5 substitutions on 5 lines") == 0);
 }
 
+/* A report must not silence the ones after it. vim "keeps" some messages
+ * (the :s count among them) until its next redraw, and holds back line-count
+ * reports while one is kept; with no redraw to clear it, that lasted. */
+MU_TEST(test_reports_follow_one_another)
+{
+  vimExecute("1,5s/Line/Row/");
+  mu_check(strcmp(lastMessage, "5 substitutions on 5 lines") == 0);
+
+  vimInput("4");
+  vimInput("d");
+  vimInput("d");
+  mu_check(strcmp(lastMessage, "4 fewer lines") == 0);
+
+  vimExecute("1,3d");
+  mu_check(strcmp(lastMessage, "3 fewer lines") == 0);
+
+  vimExecute("1,3copy $");
+  mu_check(strcmp(lastMessage, "3 more lines") == 0);
+  mu_check(errorCount == 0);
+}
+
 MU_TEST(test_search_wrap_is_a_warning)
 {
   /* "Line" under the cursor on line 1: the next one is on line 2 */
@@ -143,6 +164,7 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_small_change_is_not_reported);
   MU_RUN_TEST(test_delete_and_put_report_lines);
   MU_RUN_TEST(test_substitute_reports_count);
+  MU_RUN_TEST(test_reports_follow_one_another);
   MU_RUN_TEST(test_search_wrap_is_a_warning);
   MU_RUN_TEST(test_visual_mode_gives_no_terminal_warning);
   MU_RUN_TEST(test_error_is_sent_once_as_an_error);

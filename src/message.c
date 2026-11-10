@@ -985,13 +985,17 @@ hit_return_msg(void)
 /*
  * Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
  */
-void set_keep_msg(char_u *s, int attr)
+void set_keep_msg(char_u *s UNUSED, int attr)
 {
-  vim_free(keep_msg);
-  if (s != NULL && msg_silent == 0)
-    keep_msg = vim_strsave(s);
-  else
-    keep_msg = NULL;
+  /*
+   * libvim: nothing is kept. A kept message is one vim shows again after its
+   * next screen redraw, and forgets then. There is no redraw here, so one
+   * would stay set until something happened to replace it -- and while one
+   * is set msgmore() stays quiet, to avoid overwriting "an important
+   * message": after a :s reported its count, "4dd" no longer said "4 fewer
+   * lines". The message itself has already gone to the embedder.
+   */
+  VIM_CLEAR(keep_msg);
   keep_msg_more = FALSE;
   keep_msg_attr = attr;
 }

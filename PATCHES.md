@@ -230,6 +230,11 @@ the truncation vim does for a screen, and not at all under `:silent`. An error
 is still sent once, as `MSG_ERROR`: `emsg_core()` displays the error through the
 same path after sending it, and that second pass is skipped.
 
+`set_keep_msg()` keeps nothing. A kept message is one vim redisplays after its
+next redraw and then forgets; with no redraw it stayed set, and while one is
+set `msgmore()` holds back "N more lines" / "N fewer lines" so as not to
+overwrite it. After a `:s` had reported its count, `4dd` said nothing.
+
 `check_visual_highlight()` no longer warns "terminal cannot highlight" the
 first time Visual mode starts. There is no terminal.
 
