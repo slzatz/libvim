@@ -249,6 +249,57 @@ did. `n`, `N`, `*` and `#` report wraps correctly.
 
 Tests: `apitest/messages_reports.c`.
 
+## An embedder can stop vim writing files, and restricted mode starts no shell
+
+Nov 2026.
+
+**Upstream behavior.** Vim writes files in many more ways than `:w`:
+`:saveas`, `:w` with a range, `:redir > name`, `:mkexrc`, `:mksession`,
+`:mkview`, `:mkspell`, `writefile()`, `'verbosefile'`, a swap file once
+`'swapfile'` is set. An embedder whose buffers are not files can refuse the
+commands a user types, but each is one `:execute`, mapping, autocommand or
+sourced script away, and vim's restricted mode (`restricted = 1`, what
+`vim -Z` sets) does not cover writing: `rvim` saves files.
+
+Restricted mode is meant to stop vim starting programs, and each command that
+runs the shell checked for it. Two routes reached `call_shell()` without
+asking: `:diffpatch`, which ran `patch`, and a diff with `internal` taken out
+of `'diffopt'`.
+
+**This fork.** `vimSetFileWritesEnabled(FALSE)` (`libvim.h`): vim writes no
+file. The check is where vim opens one — `mch_open()` and `mch_fopen()` are
+now `libvim_open()` and `libvim_fopen()` (`vim.h`, `libvim.c`), which fail
+with `EACCES` for any mode that can create or change a file — so it does not
+depend on a list of commands, and covers the ones nobody thought of. The
+commands that exist to write a file (`buf_write()`, which is every `:w`,
+`:saveas`, `:wq` and `:update`; `open_exfile()`, which is `:redir` and the
+`:mk…` family; `writefile()`; `:mkspell`) check first, with
+`check_file_writes()`, and say `Writing files is not allowed here`.
+`buf_write()` checks before anything else, so an existing file is not backed
+up, renamed or truncated on the way to failing.
+
+One file is still written: the word list in `'spellfile'` and the `.spl` built
+from it (`zg`, `zw`, `:spellgood` …), and the temporary list `zG`/`zW` use.
+`spell_add_word()` brackets its work with `libvim_own_file_write()`. Note that
+`'spellfile'` is an option: a script that sets it chooses where those words
+go, though not what is written beyond a word list.
+
+Writes are on by default, as upstream, and `vimInit` turns them back on.
+Reading is not affected.
+
+`call_shell()` itself now calls `check_restricted()`, so restricted mode holds
+for every route to the shell, present and future (`E145`). One consequence:
+vim expands a file pattern containing `` ` ``, `'` or `{` by handing it to the
+shell, and in restricted mode that now fails rather than runs — including a
+`'runtimepath'` entry with one of those characters in it.
+
+**If you relied on the old behavior.** Nothing changes unless you call
+`vimSetFileWritesEnabled(FALSE)` or set `restricted`.
+
+Tests: `apitest/file_writes.c` — sixteen ways to write a file, each shown to
+write one with writes on and none with them off; and a `'shell'` that leaves a
+mark, to show that restricted mode no longer runs it for `:diffpatch`.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

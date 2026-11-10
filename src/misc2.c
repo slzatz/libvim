@@ -3010,6 +3010,12 @@ int call_shell(char_u *cmd, int opt)
   proftime_T wait_time;
 #endif
 
+  /* libvim: restricted mode starts no shell, whoever asks. The commands
+   * that run one check before they get here; ":diffpatch", an external
+   * 'diffexpr' and wildcard expansion through the shell did not. */
+  if (check_restricted())
+    return -1;
+
   if (p_verbose > 3)
   {
     verbose_enter();

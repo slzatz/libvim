@@ -2783,6 +2783,11 @@ int buf_write(
 #endif
   unsigned int bkc = get_bkc_value(buf);
 
+  /* libvim: the embedder may have turned file writes off. Checked before
+   * anything else, so no backup is made and nothing is renamed. */
+  if (check_file_writes())
+    return FAIL;
+
   if (fname == NULL || *fname == NUL) /* safety check */
     return FAIL;
   if (buf->b_ml.ml_mfp == NULL)

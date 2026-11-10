@@ -134,7 +134,7 @@ void ch_logfile(char_u *fname, char_u *opt)
 
   if (*fname != NUL)
   {
-    file = fopen((char *)fname, *opt == 'w' ? "w" : "a");
+    file = mch_fopen((char *)fname, *opt == 'w' ? "w" : "a");
     if (file == NULL)
     {
       semsg(_(e_notopen), fname);

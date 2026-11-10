@@ -5401,6 +5401,9 @@ ex_mkspell(exarg_T *eap)
     char_u	*arg = eap->arg;
     int		ascii = FALSE;
 
+    if (check_file_writes())
+	return;
+
     if (STRNCMP(arg, "-ascii", 6) == 0)
     {
 	ascii = TRUE;
@@ -6133,11 +6136,31 @@ ex_spell(exarg_T *eap)
 				   eap->cmdidx == CMD_spellundo);
 }
 
+static void spell_add_word_to_file(char_u *word, int len, int bad, int idx, int undo);
+
 /*
  * Add "word[len]" to 'spellfile' as a good or bad word.
+ *
+ * libvim: the word list, and the .spl made from it, are files vim keeps for
+ * itself, so they are written even when the embedder has turned file writes
+ * off (vimSetFileWritesEnabled).
  */
     void
 spell_add_word(
+    char_u	*word,
+    int		len,
+    int		bad,
+    int		idx,	    /* "zG" and "zW": zero, otherwise index in
+			       'spellfile' */
+    int		undo)	    /* TRUE for "zug", "zuG", "zuw" and "zuW" */
+{
+    libvim_own_file_write(TRUE);
+    spell_add_word_to_file(word, len, bad, idx, undo);
+    libvim_own_file_write(FALSE);
+}
+
+    static void
+spell_add_word_to_file(
     char_u	*word,
     int		len,
     int		bad,

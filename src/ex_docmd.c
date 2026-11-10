@@ -8389,6 +8389,8 @@ open_exfile(
 {
   FILE *fd;
 
+  if (check_file_writes())
+    return NULL;
 #ifdef UNIX
   /* with Unix it is possible to open a directory */
   if (mch_isdir(fname))

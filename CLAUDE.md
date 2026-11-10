@@ -109,7 +109,7 @@ does not affect the generated config.
 ### Running the API tests
 
 `./build-macos.sh --tests` (or `./build-linux.sh --tests`) builds and runs all
-58 of them and reports pass/fail per test. To run a single test by hand:
+60 of them and reports pass/fail per test. To run a single test by hand:
 
 ```bash
 cd src
@@ -309,3 +309,21 @@ checker such as hunspell.
 - **Tests**: `apitest/spell.c` covers the engine, all three API functions and
   the normal-mode commands. It sets `'spellfile'` to a `tempname()` so `zg`
   never writes into `runtime/spell/`.
+
+### File writes can be turned off (2026-11)
+
+`vimSetFileWritesEnabled(FALSE)` makes vim write no file by any route; see
+PATCHES.md for the whole of it. What to know when changing this tree:
+
+- **Open files with `mch_open()` / `mch_fopen()`, never bare `open()` /
+  `fopen()`.** Those two macros are `libvim_open()` / `libvim_fopen()`
+  (`vim.h`, defined in `libvim.c`), which is where the switch is enforced. A
+  bare call writes regardless.
+- A command whose purpose is to write a file should also call
+  `check_file_writes()` first, so the user gets a reason rather than a generic
+  "can't open file".
+- A file vim keeps for itself and must write even then (so far only the
+  `'spellfile'` word list) brackets the write with
+  `libvim_own_file_write(TRUE)` / `(FALSE)`.
+- `call_shell()` checks `restricted` itself. Do not add a second way to start
+  a program that goes around it.

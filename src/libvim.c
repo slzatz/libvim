@@ -837,6 +837,71 @@ void vimSetMappingsEnabled(int enabled)
 
 int vimGetMappingsEnabled(void) { return mappingsEnabled; }
 
+/*
+ * File writes. Vim writes files in many more ways than ":w": ":saveas",
+ * ":redir > f", ":mksession", writefile(), a swap file once 'swapfile' is
+ * set, and each of them is one ":execute" away from any script or mapping. An
+ * embedder whose buffers are not files turns all of it off here. The check is
+ * where vim opens a file (mch_open and mch_fopen, in vim.h), so it does not
+ * depend on a list of commands; the commands that exist to write a file also
+ * call check_file_writes() and say why they failed.
+ */
+static int fileWritesEnabled = TRUE;
+static int ownFileWrites = 0;
+
+void vimSetFileWritesEnabled(int enabled)
+{
+  fileWritesEnabled = enabled ? TRUE : FALSE;
+}
+
+int vimGetFileWritesEnabled(void) { return fileWritesEnabled; }
+
+void libvim_own_file_write(int start)
+{
+  ownFileWrites += start ? 1 : -1;
+}
+
+static int file_writes_refused(void)
+{
+  return !fileWritesEnabled && ownFileWrites == 0;
+}
+
+int check_file_writes(void)
+{
+  if (file_writes_refused())
+  {
+    emsg(_("Writing files is not allowed here"));
+    return TRUE;
+  }
+  return FALSE;
+}
+
+#if !defined(MSWIN) && !defined(VMS)
+#undef mch_open
+#undef mch_fopen
+
+int libvim_open(const char *name, int flags, int perm)
+{
+  if (file_writes_refused() && (flags & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND)))
+  {
+    errno = EACCES;
+    return -1;
+  }
+  return open(name, flags, perm);
+}
+
+FILE *libvim_fopen(const char *name, const char *mode)
+{
+  /* everything but plain "r" and "rb" can change the file */
+  if (file_writes_refused() && strpbrk(mode, "wa+") != NULL)
+  {
+    errno = EACCES;
+    return NULL;
+  }
+  return fopen(name, mode);
+}
+#endif
+
 void vimSetScrollCallback(ScrollCallback callback)
 {
   scrollCallback = callback;
@@ -863,6 +928,10 @@ void vimInit(int argc, char **argv)
   no_mapping = 1;
   no_zero_mapping = 1;
   mappingsEnabled = FALSE;
+
+  // File writes start enabled, as in vim; see vimSetFileWritesEnabled.
+  fileWritesEnabled = TRUE;
+  ownFileWrites = 0;
 
   mch_early_init();
   common_init(&params);

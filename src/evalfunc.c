@@ -14105,6 +14105,8 @@ f_writefile(typval_T *argvars, typval_T *rettv)
   blob_T *blob = NULL;
 
   rettv->vval.v_number = -1;
+  if (check_file_writes())
+    return;
   if (check_secure())
     return;
 
