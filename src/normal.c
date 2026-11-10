@@ -1886,14 +1886,9 @@ static void op_function(oparg_T *oap UNUSED)
  */
 void check_visual_highlight(void)
 {
-  static int did_check = FALSE;
-
-  if (full_screen)
-  {
-    if (!did_check && HL_ATTR(HLF_V) == 0)
-      msg(_("Warning: terminal cannot highlight"));
-    did_check = TRUE;
-  }
+  /* libvim: there is no terminal, and the embedder draws the selection.
+   * Upstream warned "terminal cannot highlight" the first time Visual mode
+   * started; harmless while msg() went nowhere, noise now that it is sent. */
 }
 
 /*

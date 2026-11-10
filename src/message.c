@@ -106,6 +106,18 @@ int msg_attr(char *s, int attr)
   return msg_attr_keep(s, attr, FALSE);
 }
 
+/*
+ * libvim: set while give_warning() hands its message to msg_attr(), so that
+ * msg_attr_keep() can send it to the embedder as a warning.
+ */
+static int msg_is_warning = FALSE;
+
+/*
+ * libvim: set while emsg_core() displays an error it has already sent to the
+ * embedder as MSG_ERROR, so that msg_attr_keep() does not send it again.
+ */
+static int msg_already_sent = FALSE;
+
 int msg_attr_keep(
     char *s,
     int attr,
@@ -144,6 +156,27 @@ int msg_attr_keep(
     /* Write message in the channel log. */
     ch_log(NULL, "ERROR: %s", (char *)s);
 #endif
+
+  /*
+     * libvim: there is no screen for the message to go to, so hand it to the
+     * embedder. This is where msg(), smsg(), msg_attr() and give_warning()
+     * all end up, which makes it the one place for vim's ordinary reports:
+     * "3 lines yanked", "4 fewer lines", "search hit BOTTOM, continuing at
+     * TOP", what undo did, the count from :s. Upstream libvim let them fall
+     * through to msg_puts_attr_len(), which drops them; only errors and the
+     * handful of commands converted one at a time (:echo, :set opt?, :marks)
+     * reached the message callback.
+     *
+     * Sent whole, before the truncation below, which is for a screen libvim
+     * does not have. Not sent under :silent, like the screen output.
+     */
+  if (msg_silent == 0 && !msg_already_sent)
+  {
+    msg_T *message = msg2_create(msg_is_warning ? MSG_WARNING : MSG_INFO);
+    msg2_put((char_u *)s, message);
+    msg2_send(message);
+    msg2_free(message);
+  }
 
   /* When displaying keep_msg, don't let msg_start() free it, caller must do
      * that. */
@@ -663,7 +696,9 @@ emsg_core(char_u *s)
      * Display the error message itself.
      */
   msg_nowait = FALSE; /* wait for this msg */
+  msg_already_sent = TRUE;
   r = msg_attr((char *)s, attr);
+  msg_already_sent = FALSE;
 
 #ifdef FEAT_JOB_CHANNEL
   emsg_to_channel_log = FALSE;
@@ -2094,8 +2129,10 @@ void give_warning(char_u *message, int hl)
     keep_msg_attr = HL_ATTR(HLF_W);
   else
     keep_msg_attr = 0;
+  msg_is_warning = TRUE;
   if (msg_attr((char *)message, keep_msg_attr) && msg_scrolled == 0)
     set_keep_msg(message, keep_msg_attr);
+  msg_is_warning = FALSE;
   msg_didout = FALSE; /* overwrite this message */
   msg_nowait = TRUE;  /* don't wait for this message */
   msg_col = 0;

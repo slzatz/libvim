@@ -210,6 +210,40 @@ go up wherever matches sit close together. Nothing is removed.
 Tests: `apitest/search_highlights.c` (`test_adjacent_and_first_column_highlights`,
 `test_highlight_enabled`), `apitest/search_large_file.c`.
 
+## vim's ordinary messages reach the message callback
+
+Nov 2026.
+
+**Upstream behavior.** libvim has no screen, so messages go to the callback set
+with `vimSetMessageCallback()`. Upstream sent errors (`emsg`) and a handful of
+commands it had converted one at a time (`:echo`, `:set opt?`, `:marks`,
+`:jumps`, `:changes`, `:ls`). Everything that went through vim's `msg()` family
+fell through to `msg_puts_attr_len()`, which ends in a `TODO` and drops it: "5
+lines yanked", "4 fewer lines", "5 more lines", "3 lines >ed 1 time", "search
+hit BOTTOM, continuing at TOP", what undo and redo did, the count from `:s`,
+`ga`, `g CTRL-G`.
+
+**This fork.** `msg_attr_keep()`, where `msg()`, `smsg()`, `msg_attr()` and
+`give_warning()` all end up, sends the message to the callback: `MSG_INFO`, or
+`MSG_WARNING` when it came through `give_warning()`. It is sent whole, before
+the truncation vim does for a screen, and not at all under `:silent`. An error
+is still sent once, as `MSG_ERROR`: `emsg_core()` displays the error through the
+same path after sending it, and that second pass is skipped.
+
+`check_visual_highlight()` no longer warns "terminal cannot highlight" the
+first time Visual mode starts. There is no terminal.
+
+**If you relied on the old behavior.** A callback that counted every message
+now counts these too — a file load reports `"name" 3L, 115C`, for instance. The
+callback gets the priority, so count `MSG_ERROR` if errors are what you mean.
+
+**Known gap.** On the `<cr>` that completes a typed `/pattern`, the wrap
+warning is unreliable: libvim searches again from where the incremental search
+left the cursor, so it can report a wrap that did not happen and miss one that
+did. `n`, `N`, `*` and `#` report wraps correctly.
+
+Tests: `apitest/messages_reports.c`.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,
