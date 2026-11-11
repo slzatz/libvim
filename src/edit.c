@@ -120,7 +120,17 @@ typedef struct
   int is_ctrlv;  /* If we are coming back from inserting a literal */
   int ctrlv_ret; /* Return value from inserting a literal */
   int is_ctrlg;  /* If ctrl-g was pressed last */
+  int ctrlr;           /* CTRL-R was typed: which key is awaited (CTRLR_*) */
+  int ctrlr_literally; /* the CTRL-R, CTRL-O or CTRL-P after it, or 0 */
 } editState_T;
+
+/* What the Insert state waits for after CTRL-R. */
+#define CTRLR_NONE 0
+#define CTRLR_NAME 1  /* a register name, or CTRL-R / CTRL-O / CTRL-P */
+#define CTRLR_NAME2 2 /* a register name, after one of those */
+#define CTRLR_EXPR 3  /* the command line the expression is typed on */
+
+static void ins_reg_key(editState_T *context, int c);
 
 static linenr_T o_lnum = 0;
 
@@ -138,6 +148,8 @@ void *state_edit_initialize(int cmdchar, int startln, long count)
   context->is_ctrlv = FALSE;
   context->is_ctrlg = FALSE;
   context->ctrlv_ret = 0;
+  context->ctrlr = CTRLR_NONE;
+  context->ctrlr_literally = 0;
 
   /* Remember whether editing was restarted after CTRL-O. */
   did_restart_edit = restart_edit;
@@ -367,6 +379,11 @@ void *state_edit_initialize(int cmdchar, int startln, long count)
 void state_edit_cleanup(void *ctx)
 {
   editState_T *context = (editState_T *)ctx;
+
+  /* Insert mode ended with the register name of a CTRL-R still to come:
+   * give back what was taken for it. */
+  if (context->ctrlr == CTRLR_NAME || context->ctrlr == CTRLR_NAME2)
+    --no_mapping;
   vim_free(context);
 }
 
@@ -391,6 +408,12 @@ executionStatus_T state_edit_execute(void *ctx, int c)
   {
     ins_ctrl_g_nonblocking(c);
     context->is_ctrlg = FALSE;
+    return HANDLED;
+  }
+
+  if (context->ctrlr != CTRLR_NONE)
+  {
+    ins_reg_key(context, c);
     return HANDLED;
   }
 
@@ -698,6 +721,15 @@ executionStatus_T state_edit_execute(void *ctx, int c)
   case Ctrl_G: /* commands starting with CTRL-G */
     // Mark as in 'ctrlg' mode, handle next key
     context->is_ctrlg = TRUE;
+    break;
+
+  case Ctrl_R: /* insert the contents of a register */
+    /* The register name is the next key, and is not to be mapped: see
+     * ins_reg_key(). */
+    context->ctrlr = CTRLR_NAME;
+    context->ctrlr_literally = 0;
+    ++no_mapping;
+    context->inserted_space = FALSE;
     break;
 
   case Ctrl_HAT: /* switch input mode and/or langmap */
@@ -4486,6 +4518,92 @@ int hkmap(int c)
 /*
  * CTRL-G commands in Insert mode.
  */
+/*
+ * libvim: CTRL-R in Insert mode, a key at a time.
+ *
+ * vim's ins_reg() reads the register name with plain_vgetc(), which waits
+ * for a key; libvim is handed its keys and cannot wait, and upstream took
+ * ins_reg() out, leaving CTRL-R to be inserted as a character. Here the
+ * Insert state remembers that CTRL-R was typed ("ctrlr") and gets the keys
+ * that follow, one per call:
+ *
+ *   CTRL-R {reg}          the register, as if typed
+ *   CTRL-R CTRL-R {reg}   literally
+ *   CTRL-R CTRL-O {reg}   literally, no auto-indent
+ *   CTRL-R CTRL-P {reg}   literally, indent fixed
+ *   CTRL-R = {expr} <CR>  the value of an expression
+ *
+ * For "=" the expression is typed on a command line: the command-line state
+ * is pushed on top of this one, and its closing <CR> or <Esc> is the key
+ * this is called with next.
+ */
+static void ins_reg_key(editState_T *context, int c)
+{
+  int regname = c;
+  int literally = context->ctrlr_literally;
+  int vis_active = VIsual_active;
+
+  if (context->ctrlr == CTRLR_EXPR)
+  {
+    /* Back from the command line. */
+    context->ctrlr = CTRLR_NONE;
+    if (ccline.cmdbuff == NULL)
+      return; /* <Esc>: nothing is inserted, and Insert mode goes on */
+    if (*ccline.cmdbuff != NUL) /* an empty line means the last expression */
+      set_expr_line(vim_strsave(ccline.cmdbuff));
+    regname = '=';
+  }
+  else
+  {
+    LANGMAP_ADJUST(regname, TRUE);
+    if (context->ctrlr == CTRLR_NAME && (regname == Ctrl_R || regname == Ctrl_O || regname == Ctrl_P))
+    {
+      /* Get a third key for literal register insertion */
+      context->ctrlr_literally = regname;
+      context->ctrlr = CTRLR_NAME2;
+      return;
+    }
+    context->ctrlr = CTRLR_NONE;
+    --no_mapping;
+
+    if (regname == '=')
+    {
+      /* Sync undo when evaluating the expression calls setline() or
+       * append(), so that it can be undone separately. */
+      u_sync_once = 2;
+      context->ctrlr = CTRLR_EXPR;
+      sm_push_cmdline('=', 0, 0);
+      return;
+    }
+  }
+
+  /* Don't call u_sync() while giving an error message for the expression.
+   * Only call it explicitly. */
+  ++no_u_sync;
+  if (regname == NUL || !valid_yank_reg(regname, FALSE))
+    vim_beep(BO_REG);
+  else if (literally == Ctrl_O || literally == Ctrl_P)
+  {
+    /* Append the command to the redo buffer. */
+    AppendCharToRedobuff(Ctrl_R);
+    AppendCharToRedobuff(literally);
+    AppendCharToRedobuff(regname);
+
+    do_put(regname, BACKWARD, 1L,
+           (literally == Ctrl_P ? PUT_FIXINDENT : 0) | PUT_CURSEND);
+  }
+  else if (insert_reg(regname, literally) == FAIL)
+    vim_beep(BO_REG);
+  --no_u_sync;
+  if (u_sync_once == 1)
+    ins_need_undo = TRUE;
+  u_sync_once = 0;
+
+  /* Disallow starting Visual mode here, would get a weird mode. */
+  if (!vis_active && VIsual_active)
+    end_visual_mode();
+}
+
 static void ins_ctrl_g_nonblocking(int c)
 {
   switch (c)

@@ -688,6 +688,33 @@ executionStatus_T state_normal_cmd_execute(void *ctx, int c)
                                 ? 0
                                 : SEARCH_MARK);
       }
+      else if (cmdc == '=')
+      {
+        /*
+         * libvim: the expression for "= or @= has been typed (nv_regname(),
+         * nv_at()). An empty line means the expression used last.
+         */
+        if (*cmd != NUL)
+          set_expr_line(vim_strsave(cmd));
+        if (context->ca.cmdchar == '@')
+        {
+          while (context->ca.count1-- && !got_int)
+          {
+            if (do_execreg('=', FALSE, FALSE, FALSE) == FAIL)
+            {
+              clearopbeep(context->oap);
+              break;
+            }
+          }
+        }
+        else
+        {
+          /* the register for the command that follows: start_normal_mode()
+           * hands it on */
+          keep_reg = '=';
+          set_reg_var('=');
+        }
+      }
       if (context->oap->op_type == OP_NOP)
       {
         start_normal_mode(context);
@@ -5197,7 +5224,14 @@ static void nv_regname(cmdarg_T *cap)
     return;
 #ifdef FEAT_EVAL
   if (cap->nchar == '=')
-    cap->nchar = get_expr_register();
+  {
+    /* libvim: vim asks for the expression with get_expr_register(), which
+     * reads a command line and does not return until it has one; libvim
+     * never came back from it. The command-line state is pushed instead,
+     * and state_normal_cmd_execute() takes it up when the line is done. */
+    sm_push_cmdline('=', 0, 0);
+    return;
+  }
 #endif
   if (cap->nchar != NUL && valid_yank_reg(cap->nchar, FALSE))
   {
@@ -6747,8 +6781,9 @@ static void nv_at(cmdarg_T *cap)
 #ifdef FEAT_EVAL
   if (cap->nchar == '=')
   {
-    if (get_expr_register() == NUL)
-      return;
+    /* libvim: as in nv_regname() */
+    sm_push_cmdline('=', 0, 0);
+    return;
   }
 #endif
   while (cap->count1-- && !got_int)

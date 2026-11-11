@@ -2159,7 +2159,90 @@ typedef struct
   int is_ctrlv;  /* If we are coming back from inserting a literal */
   int ctrlv_ret; /* Return value from inserting a literal */
 #endif
+  int ctrlr;           /* CTRL-R was typed: 1 a register name is awaited, 2 one
+                          after CTRL-R CTRL-R */
+  int ctrlr_literally; /* CTRL-R CTRL-R or CTRL-R CTRL-O: insert literally */
 } cmdlineState_T;
+
+/*
+ * libvim: vim's cmdline_paste(), which went with the CTRL-R it served.
+ *
+ * Paste a yank register into the command line.
+ * Used by CTRL-R command in command-line mode.
+ * return FAIL for failure, OK otherwise
+ */
+static int
+cmdline_paste(
+    int regname,
+    int literally, /* Insert text literally instead of "as typed" */
+    int remcr)     /* remove trailing CR */
+{
+  long i;
+  char_u *arg;
+  char_u *p;
+  int allocated;
+  struct cmdline_info save_ccline;
+
+  /* check for valid regname; also accept special characters for CTRL-R in
+   * the command line */
+  if (regname != Ctrl_F && regname != Ctrl_P && regname != Ctrl_W && regname != Ctrl_A && regname != Ctrl_L && !valid_yank_reg(regname, FALSE))
+    return FAIL;
+
+  /* A register containing CTRL-R can cause an endless loop.  Allow using
+   * CTRL-C to break the loop. */
+  line_breakcheck();
+  if (got_int)
+    return FAIL;
+
+  /* Need to save and restore ccline. */
+  save_cmdline(&save_ccline);
+  i = get_spec_reg(regname, &arg, &allocated, TRUE);
+  restore_cmdline(&save_ccline);
+
+  if (i)
+  {
+    /* Got the value of a special register in "arg". */
+    if (arg == NULL)
+      return FAIL;
+
+    /* When 'incsearch' is set and CTRL-R CTRL-W used: skip the duplicate
+     * part of the word. */
+    p = arg;
+    if (p_is && regname == Ctrl_W)
+    {
+      char_u *w;
+      int len;
+
+      /* Locate start of last word in the cmd buffer. */
+      for (w = ccline.cmdbuff + ccline.cmdpos; w > ccline.cmdbuff;)
+      {
+        if (has_mbyte)
+        {
+          len = (*mb_head_off)(ccline.cmdbuff, w - 1) + 1;
+          if (!vim_iswordc(mb_ptr2char(w - len)))
+            break;
+          w -= len;
+        }
+        else
+        {
+          if (!vim_iswordc(w[-1]))
+            break;
+          --w;
+        }
+      }
+      len = (int)((ccline.cmdbuff + ccline.cmdpos) - w);
+      if (p_ic ? STRNICMP(w, arg, len) == 0 : STRNCMP(w, arg, len) == 0)
+        p += len;
+    }
+
+    cmdline_paste_str(p, literally);
+    if (allocated)
+      vim_free(arg);
+    return OK;
+  }
+
+  return cmdline_paste_reg(regname, literally, remcr);
+}
 
 void *state_cmdline_initialize(int c, long count UNUSED, int indent)
 {
@@ -2188,6 +2271,8 @@ void *state_cmdline_initialize(int c, long count UNUSED, int indent)
   context->did_save_ccline = FALSE;
   context->ctrlv_ret = 0;
   context->is_ctrlv = FALSE;
+  context->ctrlr = 0;
+  context->ctrlr_literally = FALSE;
 
   // if (ccline.cmdbuff != NULL)
   // {
@@ -2333,6 +2418,96 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
   if (c == K_IGNORE || c == K_NOP)
   {
     return HANDLED;
+  }
+
+  /*
+   * libvim: CTRL-R, a key at a time. vim reads the register name with
+   * plain_vgetc(), which waits for a key; upstream took the case out, and
+   * CTRL-R was dropped and the name typed as a character. The CTRL-R case
+   * below notes that a name is awaited, and this is the name:
+   *
+   *   CTRL-R {reg}                 the register, as if typed
+   *   CTRL-R CTRL-R {reg}          literally (CTRL-R CTRL-O is the same)
+   *   CTRL-R CTRL-W / CTRL-A / CTRL-L / CTRL-F / CTRL-P
+   *                                the word, WORD, line, file name or path
+   *                                under the cursor
+   *
+   *   CTRL-R = {expr} <CR>         the value of an expression
+   *
+   * The expression is typed on a command line of its own: this one is put
+   * aside (save_cmdline()), the command-line state is pushed again on top of
+   * this state, and the <CR> or <Esc> that ends it is the key this function
+   * is called with next ("ctrlr" is 3 meanwhile).
+   */
+  if (context->ctrlr == 3)
+  {
+    char_u *expr = ccline.cmdbuff == NULL ? NULL : vim_strsave(ccline.cmdbuff);
+
+    VIM_CLEAR(ccline.cmdbuff);
+    restore_cmdline(&context->save_ccline);
+    context->ctrlr = 0;
+    if (expr != NULL) /* NULL: <Esc>, nothing is inserted */
+    {
+      if (*expr != NUL)
+        set_expr_line(expr);
+      else
+        vim_free(expr); /* an empty line means the last expression */
+      cmdline_paste('=', context->ctrlr_literally, FALSE);
+      if (aborting())
+      {
+        context->gotesc = TRUE;
+        goto returncmd;
+      }
+      KeyTyped = FALSE;
+    }
+    goto cmdline_changed;
+  }
+
+  if (context->ctrlr != 0)
+  {
+    int regname = c;
+
+    if (context->ctrlr == 1 && (regname == Ctrl_R || regname == Ctrl_O))
+    {
+      context->ctrlr = 2;
+      context->ctrlr_literally = TRUE;
+      return HANDLED;
+    }
+    context->ctrlr = 0;
+    --no_mapping;
+    extra_char = NUL;
+
+    if (regname == '=')
+    {
+      if (ccline.cmdfirstc == '=')
+      {
+        /* can't do this recursively */
+        beep_flush();
+        regname = ESC;
+      }
+      else
+      {
+        save_cmdline(&context->save_ccline);
+        context->ctrlr = 3;
+        sm_push_cmdline('=', 0, 0);
+        return HANDLED;
+      }
+    }
+    if (regname != ESC) /* use ESC to cancel inserting register */
+    {
+      cmdline_paste(regname, context->ctrlr_literally, FALSE);
+
+      /* When there was a serious error abort getting the
+       * command line. */
+      if (aborting())
+      {
+        context->gotesc = TRUE; /* will free ccline.cmdbuff after
+                                   putting it in history */
+        goto returncmd;         /* back to cmd mode */
+      }
+      KeyTyped = FALSE; /* Don't do p_wc completion. */
+    }
+    goto cmdline_changed;
   }
 
   if (KeyTyped)
@@ -2925,6 +3100,14 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
       sm_push_insert_literal(&context->ctrlv_ret);
       return HANDLED;
 
+    case Ctrl_R: /* insert register */
+      /* The name is the next key, not to be mapped; see the top of this
+       * function. */
+      context->ctrlr = 1;
+      context->ctrlr_literally = FALSE;
+      ++no_mapping;
+      goto cmdline_not_changed;
+
     case Ctrl_B: /* begin of command line */
     case K_HOME:
     case K_KHOME:
@@ -3250,6 +3433,10 @@ cmdline_changed:
 void state_cmdline_cleanup(void *ctx)
 {
   cmdlineState_T *context = (cmdlineState_T *)ctx;
+
+  /* left with the register name of a CTRL-R still to come */
+  if (context->ctrlr == 1 || context->ctrlr == 2)
+    --no_mapping;
 
   /* Trigger CmdlineLeave autocommands. */
   trigger_cmd_autocmd(context->cmdline_type, EVENT_CMDLINELEAVE);

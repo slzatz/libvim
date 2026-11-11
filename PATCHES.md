@@ -118,9 +118,6 @@ taken as they are, or as the longest mapping they do complete (`j` mapped as
 well as `jk`). Inside, `vgetorpeek()` starts with its `timedout` flag set
 while the timeout is delivered; nothing else in it changed.
 
-**Known limit.** `<C-r>` in an insert-mode right-hand side inserts a literal
-`^R`; that is libvim's insert state, not mapping.
-
 **Tests.** `apitest/mapping.c`: not expanded by default, normal and visual
 mappings expanded when enabled (including an ex right-hand side), disabling
 stops expansion, enable is idempotent, and counts and `0` are unaffected;
@@ -362,6 +359,54 @@ start (then the mark is already set, at the original position). Everything
 above behaves as in vim, and a wrap is reported once, when it happens.
 
 **Tests.** `apitest/search_typed.c`.
+
+## CTRL-R works, and the expression register does not hang
+
+Nov 2026.
+
+**Upstream behavior.** vim reads the register name after CTRL-R with
+`plain_vgetc()`, and for `=` reads a whole command line with `getcmdline()`.
+Both wait for keys. libvim is handed its keys and cannot wait, and upstream
+dealt with that in two ways:
+
+- In **Insert mode** and on the **command line** the CTRL-R code was taken
+  out. In Insert mode CTRL-R was inserted as a character (`^R`), followed by
+  the register's name. On the command line it was dropped and the name typed:
+  `:echo "<C-r>a"` ran `echo "a"`.
+- In **Normal mode** it was left in: `"=` and `@=` called
+  `get_expr_register()`, and **never returned**.
+
+**This fork.** Each state remembers that it is owed a key, and takes it on
+its next call.
+
+| | |
+|---|---|
+| Insert: `CTRL-R {reg}` | the register, as if typed |
+| Insert: `CTRL-R CTRL-R {reg}`, `CTRL-R CTRL-O {reg}`, `CTRL-R CTRL-P {reg}` | literally; without auto-indent; with the indent fixed |
+| Insert: `CTRL-R = {expr} <CR>` | the value of an expression |
+| Command line: `CTRL-R {reg}`, `CTRL-R CTRL-R {reg}` | the register; literally |
+| Command line: `CTRL-R CTRL-W`, `CTRL-A`, `CTRL-L`, `CTRL-F`, `CTRL-P` | the word, WORD, line, file name, path under the cursor |
+| Command line: `CTRL-R = {expr} <CR>` | the value of an expression |
+| Normal: `"= {expr} <CR>` then `p`, `P` … | the expression register |
+| Normal: `@= {expr} <CR>` | execute the value as keys |
+
+The register name is not mapped (`no_mapping` is raised until it arrives),
+and `<Esc>` in its place cancels the CTRL-R and nothing else.
+
+**The expression is typed on a command line.** The command-line state is
+pushed on top of the state that asked, so while it is typed `vimGetMode()` is
+`CMDLINE` and `vimCommandLineGetType()` is `'='`; `vimCommandLineGetText()` is
+the expression. Its `<CR>` gives the value to the state underneath and its
+`<Esc>` gives nothing — Insert mode goes on, and a command line that was
+being typed is still there, as it was (`save_cmdline()` puts it aside
+meanwhile). An embedder that draws the command line, or that acts on `<CR>`
+itself, should look at the type. An empty expression is the one used last.
+Inside an expression's own line `CTRL-R =` is refused, as in vim.
+
+**If you relied on the old behavior.** A literal CTRL-R in the text is
+`CTRL-V CTRL-R`.
+
+**Tests.** `apitest/ctrl_r.c`.
 
 ## An embedder can stop vim writing files, and restricted mode starts no shell
 

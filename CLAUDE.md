@@ -247,7 +247,7 @@ None of these is started.
 
 - **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
 - **`:s` with the `c` flag** has no prompt to confirm with.
-- **`<C-r>` in an insert-mode mapping right-hand side** inserts a literal `^R`.
+- **vimscript that asks the user for a line never returns**: `input()`, `inputsecret()` and `inputlist()` call vim's waiting readers (tried from vimango with `:echo input('x')`: it hangs). `getchar()` and `confirm()` do return. See "Keys that wait for another key".
 - `vimSetCursorAddCallback()` and its global still exist and are wired up in `libvim.c`; nothing calls them for a blockwise `I`/`A` any more.
 
 ## What this fork changed
@@ -267,6 +267,10 @@ A key that begins a longer mapping (`j` of `jk`) waits in the typeahead buffer. 
 ### Messages (2026-11)
 
 `msg_attr_keep()`, where `msg()`, `smsg()`, `msg_attr()` and `give_warning()` all end up, sends the message to the callback (`MSG_INFO`, or `MSG_WARNING` from `give_warning()`), whole, and not at all under `:silent`. An error is sent once, as `MSG_ERROR`, by `emsg_core()`; its second pass through the display path is skipped. `set_keep_msg()` keeps nothing: with no redraw a kept message stayed set, and `msgmore()` then held back the next "N more lines". Tests: `apitest/messages_reports.c`.
+
+### Keys that wait for another key (2026-11)
+
+vim reads a second key with `plain_vgetc()` and a line with `getcmdline()`, and both wait. Nothing in libvim may: `vimInput()` must return. **A call to either that is still in the tree and can be reached is a hang** — `"=` was one. The pattern for replacing one: the state notes that it is owed a key (`ctrlr` in the Insert and command-line states, `is_ctrlg`, `is_ctrlv`) and handles it at the top of its next `execute` call; for a whole line, push the command-line state (`sm_push_cmdline('=', 0, 0)`) and read `ccline.cmdbuff` when the key that ended it comes back down (`COMPLETED_UNHANDLED` hands that key to the state underneath; `NULL` means `<Esc>`). CTRL-R is done this way in `edit.c` (`ins_reg_key()`) and `ex_getln.c` (top of `state_cmdline_execute()`), and `"=` / `@=` in `normal.c` (the `CMDLINE` return in `state_normal_cmd_execute()`). Commented out, and so merely missing: CTRL-\ CTRL-N and CTRL-\ e (CTRL-K waits too, but digraphs are not compiled in). **Still in the tree and waiting**: `input()`, `inputsecret()` and `inputlist()` (they hang; see "Known gaps"), and, not tried, `:s` with the `c` flag and the yes/no questions (`ask_yesno()`: "cannot yank; delete anyway", "No undo possible; continue anyway"). Tests: `apitest/ctrl_r.c`.
 
 ### A typed search (2026-11)
 
