@@ -3475,6 +3475,11 @@ void ex_version(exarg_T *eap)
   {
     displayVersionCallback();
   }
+  else
+  {
+    /* libvim: an embedder with no version of its own to show gets vim's */
+    list_version();
+  }
 }
 
 /*

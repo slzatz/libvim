@@ -232,7 +232,7 @@ Nov 2026.
 with `vimSetMessageCallback()`. Upstream sent errors (`emsg`) and a handful of
 commands it had converted one at a time (`:echo`, `:set opt?`, `:marks`,
 `:jumps`, `:changes`, `:ls`). Everything that went through vim's `msg()` family
-fell through to `msg_puts_attr_len()`, which ends in a `TODO` and drops it: "5
+fell through to `msg_puts_attr_len()`, which ended in a `TODO` and dropped it: "5
 lines yanked", "4 fewer lines", "5 more lines", "3 lines >ed 1 time", "search
 hit BOTTOM, continuing at TOP", what undo and redo did, the count from `:s`,
 `ga`, `g CTRL-G`.
@@ -262,6 +262,75 @@ left the cursor, so it can report a wrap that did not happen and miss one that
 did. `n`, `N`, `*` and `#` report wraps correctly.
 
 Tests: `apitest/messages_reports.c`.
+
+## What a command lists reaches the message callback
+
+Nov 2026.
+
+**Upstream behavior.** vim writes a listing — `:registers`, `:map`, `:print`,
+`:let` — a piece at a time: a title with `msg_puts_title()`, then a line per
+item with `msg_putchar()`, `msg_outtrans()` and `msg_advance()`, which pads
+with blanks up to a column. All of them come down to `msg_puts_attr_len()`,
+and upstream dropped the text there (the previous section). Two results:
+
+- **The commands said nothing**: `:registers`, `:display`, `:map` and its
+  relatives, `:abbreviate`, `:command`, `:print`, `:number`, `:list`, `:#`,
+  `:g/pat/p`, `:history`, `:highlight`, `:autocmd`, `:tags`, `:echon`. Only
+  the few upstream had converted one by one (`:marks`, `:ls`, `:jumps`,
+  `:set`) had output.
+- **Some never returned.** The screen code that advanced `msg_col` went with
+  the screen, and `msg_advance()` writes blanks *until `msg_col` reaches the
+  column*. `:let`, `:let g:var` and `:highlight` looped in it for ever.
+
+`:version` and `:messages` were handed to the embedder
+(`vimSetDisplayVersionCallback()`, `vimSetGotoCallback()`) and did nothing
+without one.
+
+**This fork.** In `msg_puts_attr_len()`:
+
+- `msg_col` and `msg_didout` are kept as the screen code kept them, so
+  padding ends and columns line up.
+- While an ex command runs — between `msg_listing_begin()` and
+  `msg_listing_end()`, which `do_cmdline()` calls — the text is collected. It
+  is sent as **one `MSG_INFO` message, with line breaks in it**, when the
+  outermost command ends, or before any other message goes out (`msg2_send()`
+  flushes first), so the callback receives things in the order vim wrote them:
+  `:echo 1 | registers | echo 2` is three messages. Blank lines before and
+  after a listing are dropped, and a listing that is nothing else is not sent.
+- Not under `:silent`; and `execute('registers')` still returns the listing to
+  the script, as it always did, without sending it.
+- Keys typed outside an ex command write there too — the pattern `n` echoes on
+  vim's command line. That is not sent.
+- `msg_scroll` is set while an ex command runs. It is what makes `msg_start()`
+  begin a new line where it would otherwise go back and write over the last
+  message; vim sets it for a typed command, and without it the lines of
+  `:1,3print` came out as one.
+
+A message vim also *displays* after sending it (`msg_attr_keep()`), and the
+commands upstream converted that still write to the screen as well (`:echo`,
+`:marks`), are not collected a second time: `msg_listing_pause()` /
+`msg_listing_resume()`.
+
+Smaller things, found on the way:
+
+- `:version` with no callback lists vim's version and features.
+- `:messages` with no goto callback lists vim's message history, and
+  `:messages clear` with no clear callback clears it.
+- `:echomsg` is vim's `msg_attr()` again: sent to the callback as before, and
+  now also kept in the message history, which is its purpose. Under `:silent`
+  it is no longer sent.
+- `:echoerr` sent its error twice; once now.
+- A bare `:history` is the command history, as documented. vim leaves that to
+  the kind of command line last typed, which under `vimExecute()` is anything.
+
+**If you relied on the old behavior.** Commands that sent nothing now send a
+message. A callback that treats every `MSG_INFO` as one line of text will meet
+line breaks.
+
+**Known gaps.** Columns are laid out for `Columns` cells (`:registers`
+truncates there). `:s` with the `c` flag still has no prompt.
+
+**Tests.** `apitest/listings.c`.
 
 ## An embedder can stop vim writing files, and restricted mode starts no shell
 

@@ -8483,6 +8483,12 @@ void ex_echo(exarg_T *eap)
 
   msg_T *msg = msg2_create(MSG_INFO);
 
+  /* libvim: ":echo" sends its text as a message of its own, below; what it
+     * writes to the screen on the way is not a listing as well. ":echon" has
+     * no message, and its pieces are collected. */
+  if (eap->cmdidx == CMD_echo)
+    msg_listing_pause();
+
   if (eap->skip)
     ++emsg_skip;
   while (*arg != NUL && *arg != '|' && *arg != '\n' && !got_int)
@@ -8558,6 +8564,8 @@ void ex_echo(exarg_T *eap)
       msg2_send(msg);
     }
   }
+  if (eap->cmdidx == CMD_echo)
+    msg_listing_resume();
 
   msg2_free(msg);
 }
@@ -8634,20 +8642,19 @@ void ex_execute(exarg_T *eap)
 
     if (eap->cmdidx == CMD_echomsg)
     {
-      msg_T *msg = msg2_create(MSG_INFO);
-      msg2_put(ga.ga_data, msg);
-      msg2_send(msg);
-      msg2_free(msg);
+      /* libvim: vim's own call again. msg_attr() sends the text to the
+	     * embedder, as upstream's msg2_send() here did, and also puts it
+	     * in the message history -- which is what ":echomsg" is for, and
+	     * what ":messages" lists. */
+      msg_attr(ga.ga_data, echo_attr);
     }
     else if (eap->cmdidx == CMD_echoerr)
     {
       /* We don't want to abort following commands, restore did_emsg. */
       save_did_emsg = did_emsg;
+      /* libvim: emsg() sends the error to the embedder. Upstream sent it
+	     * a second time from here. */
       emsg(ga.ga_data);
-      msg_T *msg = msg2_create(MSG_ERROR);
-      msg2_put(ga.ga_data, msg);
-      msg2_send(msg);
-      msg2_free(msg);
       if (!force_abort)
         did_emsg = save_did_emsg;
     }

@@ -18,6 +18,9 @@ msg_T *msg2_create(msgPriority_T priority)
 
 void msg2_send(msg_T *msg)
 {
+  /* A listing written before this message goes out before it. */
+  msg_listing_flush();
+
   if (messageCallback != NULL)
   {
     messageCallback((char_u *)msg->title, (char_u *)msg->contents, msg->priority);

@@ -6457,7 +6457,15 @@ void ex_history(exarg_T *eap)
     return;
   }
 
-  if (!(VIM_ISDIGIT(*arg) || *arg == '-' || *arg == ','))
+  /*
+     * libvim: with no name ":history" is the command history, as documented.
+     * vim leaves it to get_histtype(""), which answers with the kind of
+     * command line last typed -- ':' in vim, where ":history" was just typed
+     * on one, but anything, or nothing, when the command came by vimExecute().
+     */
+  if (*arg == NUL)
+    end = arg;
+  else if (!(VIM_ISDIGIT(*arg) || *arg == '-' || *arg == ','))
   {
     end = arg;
     while (ASCII_ISALPHA(*end) || vim_strchr((char_u *)":=@>/?", *end) != NULL)

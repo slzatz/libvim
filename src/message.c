@@ -118,6 +118,9 @@ static int msg_is_warning = FALSE;
  */
 static int msg_already_sent = FALSE;
 
+static void msg_listing_put(char_u *str, int maxlen);
+static int msg_listing_off = 0;
+
 int msg_attr_keep(
     char *s,
     int attr,
@@ -184,6 +187,9 @@ int msg_attr_keep(
     keep_msg = NULL;
 
   /* Truncate the message if needed. */
+  /* libvim: the message has gone to the embedder whole; what follows wrote
+     * it on the screen, and must not make a listing of it as well. */
+  ++msg_listing_off;
   msg_start();
   buf = msg_strtrunc((char_u *)s, FALSE);
   if (buf != NULL)
@@ -192,6 +198,7 @@ int msg_attr_keep(
   msg_outtrans_attr((char_u *)s, attr);
   msg_clr_eos();
   retval = msg_end();
+  --msg_listing_off;
 
   if (keep && retval && vim_strsize((char_u *)s) < (int)(Rows - cmdline_row - 1) * Columns + sc_col)
     set_keep_msg((char_u *)s, 0);
@@ -918,6 +925,8 @@ int delete_first_msg(void)
  */
 void ex_messages(exarg_T *eap)
 {
+  struct msg_hist *p;
+
   if (STRCMP(eap->arg, "clear") == 0)
   {
     if (clearCallback != NULL)
@@ -926,6 +935,14 @@ void ex_messages(exarg_T *eap)
       clearRequest.count = eap->addr_count != 0 ? eap->line2 : 0;
       clearRequest.target = CLEAR_MESSAGES;
       clearCallback(clearRequest);
+    }
+    else
+    {
+      /* libvim: no embedder keeps the messages, so vim's own are cleared */
+      int keep = eap->addr_count == 0 ? 0 : eap->line2;
+
+      while (msg_hist_len > keep)
+        (void)delete_first_msg();
     }
 
     return;
@@ -943,7 +960,33 @@ void ex_messages(exarg_T *eap)
     gotoRequest.target = MESSAGES;
     gotoRequest.count = eap->addr_count != 0 ? eap->line2 : 0;
     gotoCallback(gotoRequest);
+    return;
   }
+
+  /*
+     * libvim: upstream left ":messages" to the embedder's own message pane.
+     * One without (no goto callback) gets vim's history, written as a
+     * listing: msg_puts() rather than vim's msg_attr(), which would send
+     * each old message to the embedder again as if it were new.
+     */
+  p = first_msg_hist;
+  if (eap->addr_count != 0)
+  {
+    int c = 0;
+
+    /* ":3messages": the last three */
+    for (; p != NULL; p = p->next)
+      c++;
+    c -= eap->line2;
+    for (p = first_msg_hist; p != NULL && c > 0; p = p->next, c--)
+      ;
+  }
+  for (; p != NULL && !got_int; p = p->next)
+    if (p->msg != NULL)
+    {
+      msg_puts((char *)p->msg);
+      msg_putchar('\n');
+    }
 }
 
 #if defined(FIND_REPLACE_DIALOG) || defined(PROTO)
@@ -1627,14 +1670,163 @@ msg_puts_attr_len(char *str, int maxlen, int attr)
   msg_didany = TRUE; /* remember that something was outputted */
 
   /*
-     * If there is no valid screen, use fprintf so we can see error messages.
-     * If termcap is not active, we may be writing in an alternate console
-     * window, cursor positioning may not work correctly (window size may be
-     * different, e.g. for Win32 console) or we just don't know where the
-     * cursor is.
+     * libvim: there is no screen. This is where the text of everything vim
+     * writes a piece at a time ends up -- the listings: ":registers", ":map",
+     * ":print" -- and upstream dropped it here. It is collected instead, and
+     * sent to the embedder as one message when the command is done.
      */
+  msg_listing_put((char_u *)str, maxlen);
+}
 
-  /* libvim - TODO: Does this need to be sent to the client? */
+/*
+ * libvim: listings.
+ *
+ * vim writes a report with msg() or smsg(), whole, and msg_attr_keep() hands
+ * it to the embedder. A listing is written with msg_puts(), msg_putchar(),
+ * msg_outtrans() and msg_advance(): a title, then a line per item, padded
+ * into columns by looking at msg_col. All of them come down to
+ * msg_puts_attr_len(), and there:
+ *
+ * - msg_col and msg_didout are kept as the screen code kept them. With
+ *   msg_col standing still, msg_advance() -- "write blanks up to this column"
+ *   -- never returned: that was bare ":let", ":let g:var", ":highlight".
+ * - While an ex command runs (msg_listing_begin/end, from do_cmdline()), the
+ *   text is collected, and sent as one MSG_INFO message when the outermost
+ *   command ends, or before any other message is sent, so that what the
+ *   embedder receives is in the order vim wrote it. Keys typed outside an ex
+ *   command write here too (the pattern echoed by "n"); that is not sent.
+ */
+static garray_T msg_listing;
+static int msg_listing_depth = 0; /* inside this many do_cmdline() calls */
+/* msg_listing_off (declared above): text is already going out as a message */
+
+static void
+msg_listing_put(char_u *str, int maxlen)
+{
+  char_u *s = str;
+  int len;
+
+  while (*s != NUL && (maxlen < 0 || (int)(s - str) < maxlen))
+  {
+    if (*s == '\n')
+    {
+      msg_col = 0;
+      msg_didout = FALSE; /* the line is empty */
+      ++s;
+    }
+    else if (*s == '\r')
+    {
+      msg_col = 0;
+      ++s;
+    }
+    else if (*s == TAB)
+    {
+      msg_col += 8 - msg_col % 8;
+      msg_didout = TRUE;
+      ++s;
+    }
+    else
+    {
+      len = (*mb_ptr2len)(s);
+      if (len < 1)
+        len = 1;
+      if (maxlen >= 0 && (int)(s - str) + len > maxlen)
+        len = maxlen - (int)(s - str);
+      msg_col += len > 1 ? (*mb_ptr2cells)(s) : 1;
+      msg_didout = TRUE;
+      s += len;
+    }
+  }
+
+  if (msg_listing_depth == 0 || msg_listing_off != 0 || s == str)
+    return;
+
+  if (msg_listing.ga_itemsize == 0)
+    ga_init2(&msg_listing, 1, 400);
+  len = (int)(s - str);
+  if (ga_grow(&msg_listing, len + 1) == OK) /* + 1: the NUL added on sending */
+  {
+    mch_memmove((char_u *)msg_listing.ga_data + msg_listing.ga_len, str, (size_t)len);
+    msg_listing.ga_len += len;
+  }
+}
+
+/*
+ * Send what has been collected, as one message. Blank lines before and
+ * after it are not part of it: vim starts a listing with a line break to get
+ * off the command line, and a listing that is nothing else is nothing.
+ */
+void msg_listing_flush(void)
+{
+  char_u *base;
+  char_u *text;
+  char_u *end;
+
+  if (msg_listing.ga_len == 0)
+    return;
+
+  ga_append(&msg_listing, NUL);
+  base = (char_u *)msg_listing.ga_data;
+  text = base;
+  end = text + msg_listing.ga_len - 1;
+  while (end > text && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' '))
+    --end;
+  *end = NUL;
+  while (*text == '\n' || *text == '\r')
+    ++text;
+
+  /* The callback may run another command; start afresh first. */
+  msg_listing.ga_data = NULL;
+  msg_listing.ga_len = 0;
+  msg_listing.ga_maxlen = 0;
+
+  if (*text != NUL && messageCallback != NULL)
+    messageCallback((char_u *)"", text, MSG_INFO);
+  vim_free(base);
+}
+
+/*
+ * do_cmdline() calls these around the commands it runs.
+ *
+ * msg_scroll is what makes msg_start() begin a new line where it would
+ * otherwise go back to the start of the command line and write over the last
+ * message. vim sets it for a command the user typed; libvim's commands come
+ * in by vimExecute(), which does not, and the lines of ":1,3print" came out
+ * as one. There is nothing here to write over.
+ */
+static int msg_listing_save_scroll;
+
+void msg_listing_begin(void)
+{
+  if (msg_listing_depth++ == 0)
+  {
+    msg_listing_save_scroll = msg_scroll;
+    msg_scroll = TRUE;
+  }
+}
+
+void msg_listing_end(void)
+{
+  if (--msg_listing_depth == 0)
+  {
+    msg_scroll = msg_listing_save_scroll;
+    msg_listing_flush();
+  }
+}
+
+/*
+ * For a command that sends its output to the embedder itself (msg2_send) and
+ * still writes it to the screen as well: between these the screen's copy is
+ * not collected.
+ */
+void msg_listing_pause(void)
+{
+  ++msg_listing_off;
+}
+
+void msg_listing_resume(void)
+{
+  --msg_listing_off;
 }
 
 /*

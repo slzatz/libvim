@@ -246,8 +246,6 @@ For applications that need standard vim visual block behavior (text replicated o
 None of these is started.
 
 - **A typed `/pattern`: the wrap warning on the closing `<cr>` is unreliable.** libvim searches again from where the incremental search left the cursor, so it can report a wrap that did not happen and miss one that did. `n`, `N`, `*` and `#` are right. vimango drops the warning for that one key.
-- **Commands that list nothing.** `:registers`, `:history`, `:messages`, `:version` and a bare `:map` send no output to the message callback.
-- **A bare `:let` never returns.** It lists every variable and waits, inside the call, for a key to page with. vimango refuses it. Anything else that pages its output is suspect.
 - **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
 - **`:s` with the `c` flag** has no prompt to confirm with.
 - **`<C-r>` in an insert-mode mapping right-hand side** inserts a literal `^R`.
@@ -269,7 +267,13 @@ A key that begins a longer mapping (`j` of `jk`) waits in the typeahead buffer. 
 
 ### Messages (2026-11)
 
-`msg_attr_keep()`, where `msg()`, `smsg()`, `msg_attr()` and `give_warning()` all end up, sends the message to the callback (`MSG_INFO`, or `MSG_WARNING` from `give_warning()`), whole, and not at all under `:silent`. An error is sent once, as `MSG_ERROR`, by `emsg_core()`; its second pass through the display path is skipped. `set_keep_msg()` keeps nothing: with no redraw a kept message stayed set, and `msgmore()` then held back the next "N more lines". A command that should say something and does not is probably writing with `msg_puts()` and friends, which still end in a `TODO` (see "Known gaps"). Tests: `apitest/messages_reports.c`.
+`msg_attr_keep()`, where `msg()`, `smsg()`, `msg_attr()` and `give_warning()` all end up, sends the message to the callback (`MSG_INFO`, or `MSG_WARNING` from `give_warning()`), whole, and not at all under `:silent`. An error is sent once, as `MSG_ERROR`, by `emsg_core()`; its second pass through the display path is skipped. `set_keep_msg()` keeps nothing: with no redraw a kept message stayed set, and `msgmore()` then held back the next "N more lines". Tests: `apitest/messages_reports.c`.
+
+### Listings (2026-11)
+
+What vim writes a piece at a time — `msg_puts()`, `msg_putchar()`, `msg_outtrans()`, `msg_advance()`: every listing — comes down to `msg_puts_attr_len()`. There `msg_listing_put()` keeps `msg_col` and `msg_didout` up to date (**nothing else does**; with `msg_col` standing still `msg_advance()` never returns, which was the bare `:let` hang) and, while `do_cmdline()` is running a command, collects the text. `msg_listing_end()` at the outermost `do_cmdline()` sends it as one `MSG_INFO` message; `msg2_send()` flushes first, to keep order. `do_cmdline()` has one exit after its recursion check, and the begin/end pair relies on that.
+
+A new command that says nothing: check `msg_silent`, then whether it is one upstream gave to a callback (`:version`, `:messages` did). One that says something twice sends a message of its own *and* writes to the screen: wrap the screen part in `msg_listing_pause()` / `msg_listing_resume()`, as `ex_echo()` does. Tests: `apitest/listings.c`.
 
 ### Visual Block I/A Fix (2026-01)
 

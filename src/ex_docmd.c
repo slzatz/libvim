@@ -642,6 +642,7 @@ int do_cmdline(
     return FAIL;
   }
   ++call_depth;
+  msg_listing_begin(); /* libvim: collect what the commands list */
 
 #ifdef FEAT_EVAL
   cstack.cs_idx = -1;
@@ -1343,6 +1344,7 @@ int do_cmdline(
 #endif
 
   --call_depth;
+  msg_listing_end(); /* libvim: the outermost call sends it */
   return retval;
 }
 

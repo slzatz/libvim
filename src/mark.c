@@ -767,7 +767,6 @@ show_one_mark(
       if (!got_int)
       {
         sprintf((char *)IObuff, " %c %6ld %4d ", c, p->lnum, p->col);
-        msg_outtrans(IObuff);
         msg2_put(IObuff, message);
         if (name != NULL)
         {
