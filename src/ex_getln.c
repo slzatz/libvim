@@ -3189,6 +3189,16 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
   goto cmdline_changed;
 
 returncmd:
+  /*
+   * libvim: as vim's getcmdline() does on its way out. While the pattern was
+   * typed, 'incsearch' moved the cursor to the match; this puts it back where
+   * the search is to start from (or, after <Esc>, where it was), so that the
+   * search the <CR> asks for is the one real search, run from the right
+   * place. Upstream left the cursor on the match and searched forward and
+   * back again from there to end up in the same spot.
+   */
+  finish_incsearch_highlighting(context->gotesc, &context->is_state, FALSE);
+
   if (context->gotesc == TRUE)
   {
     abandon_cmdline();

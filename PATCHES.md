@@ -256,10 +256,6 @@ first time Visual mode starts. There is no terminal.
 now counts these too — a file load reports `"name" 3L, 115C`, for instance. The
 callback gets the priority, so count `MSG_ERROR` if errors are what you mean.
 
-**Known gap.** On the `<cr>` that completes a typed `/pattern`, the wrap
-warning is unreliable: libvim searches again from where the incremental search
-left the cursor, so it can report a wrap that did not happen and miss one that
-did. `n`, `N`, `*` and `#` report wraps correctly.
 
 Tests: `apitest/messages_reports.c`.
 
@@ -331,6 +327,41 @@ line breaks.
 truncates there). `:s` with the `c` flag still has no prompt.
 
 **Tests.** `apitest/listings.c`.
+
+## A typed search is one search, from where it started
+
+Nov 2026.
+
+**Upstream behavior.** While `/pattern` is typed, `'incsearch'` moves the
+cursor to the match. vim's `getcmdline()` puts it back as it returns
+(`finish_incsearch_highlighting()`), and `nv_search()` then runs the search.
+libvim's command-line state did not put it back; instead, normal mode searched
+twice from wherever the cursor had been left — forward, then back — "so
+everything is set for N and n". For a plain pattern typed with `'incsearch'`
+on, that ends on the right match. Otherwise:
+
+- **Wrap warnings were those of the two extra searches**, not of the real
+  one: `/second` from line 1, with one match in the buffer, said "search hit
+  BOTTOM" *and* "search hit TOP"; `?second` from line 1, which does wrap, said
+  nothing.
+- **An offset was an error**: `/second/e` went to the right place and then
+  reported `E486: Pattern not found: second/e`.
+- A pattern that is not there was reported twice.
+- **A failed search moved the cursor**: with `'nowrapscan'`, `/first` from the
+  last line gave `E385` and left the cursor on line 1, where `'incsearch'` had
+  put it.
+- **With `'noincsearch'` it found the wrong match**: forward then back from
+  the starting position is the *previous* match.
+- An empty `/` did not repeat the last search, and the `''` mark was not where
+  the search started.
+
+**This fork.** `state_cmdline_execute()` calls
+`finish_incsearch_highlighting()` on its way out, and normal mode runs vim's
+one `normal_search()`, with `SEARCH_MARK` unless CTRL-G or CTRL-T moved the
+start (then the mark is already set, at the original position). Everything
+above behaves as in vim, and a wrap is reported once, when it happens.
+
+**Tests.** `apitest/search_typed.c`.
 
 ## An embedder can stop vim writing files, and restricted mode starts no shell
 

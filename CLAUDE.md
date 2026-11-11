@@ -245,7 +245,6 @@ For applications that need standard vim visual block behavior (text replicated o
 
 None of these is started.
 
-- **A typed `/pattern`: the wrap warning on the closing `<cr>` is unreliable.** libvim searches again from where the incremental search left the cursor, so it can report a wrap that did not happen and miss one that did. `n`, `N`, `*` and `#` are right. vimango drops the warning for that one key.
 - **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
 - **`:s` with the `c` flag** has no prompt to confirm with.
 - **`<C-r>` in an insert-mode mapping right-hand side** inserts a literal `^R`.
@@ -268,6 +267,10 @@ A key that begins a longer mapping (`j` of `jk`) waits in the typeahead buffer. 
 ### Messages (2026-11)
 
 `msg_attr_keep()`, where `msg()`, `smsg()`, `msg_attr()` and `give_warning()` all end up, sends the message to the callback (`MSG_INFO`, or `MSG_WARNING` from `give_warning()`), whole, and not at all under `:silent`. An error is sent once, as `MSG_ERROR`, by `emsg_core()`; its second pass through the display path is skipped. `set_keep_msg()` keeps nothing: with no redraw a kept message stayed set, and `msgmore()` then held back the next "N more lines". Tests: `apitest/messages_reports.c`.
+
+### A typed search (2026-11)
+
+`/pattern<cr>`: the command-line state (`state_cmdline_execute()` in `ex_getln.c`) calls `finish_incsearch_highlighting()` at `returncmd`, which puts the cursor back where the search starts from — `'incsearch'` had moved it to the match — and `state_normal_cmd_execute()` (`normal.c`, the `CMDLINE` return) then runs one `normal_search()`, as vim's `nv_search()` does. Upstream skipped the first and made up for it with two searches, forward and back; see PATCHES.md for what that broke. If a typed search misbehaves, compare with `nv_search()` in vim 8.1 before adding anything. Tests: `apitest/search_typed.c`.
 
 ### Listings (2026-11)
 

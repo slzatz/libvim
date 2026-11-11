@@ -670,23 +670,23 @@ executionStatus_T state_normal_cmd_execute(void *ctx, int c)
       else if (cmdc == '/' || cmdc == '?')
       {
         context->ca.searchbuf = cmd;
-        /* Seed the search - bump it forward and back so everything is set for N and n */
-        if (cmdc == '/')
-        {
-          (void)normal_search(&context->ca, cmdc, cmd, 0);
-          (void)normal_search(&context->ca, cmdc, cmd, SEARCH_REV | SEARCH_END);
-        }
-        else
-        {
-          (void)normal_search(&context->ca, cmdc, cmd, SEARCH_START);
-          (void)normal_search(&context->ca, cmdc, cmd, SEARCH_REV | SEARCH_START);
-        }
-
-        /* TODO: SEARCH_MARK parameter - how do we wire that up? We may need to stash save_cursor somewhere. */
-        /* (void)normal_search(cap, cap->cmdchar, cap->searchbuf, */
-        /*                     (cap->arg || !EQUAL_POS(save_cursor, curwin->w_cursor)) */
-        /*                         ? 0 */
-        /*                         : SEARCH_MARK); */
+        /*
+         * libvim: vim's nv_search(), after getcmdline() has returned. The
+         * cursor is where the search starts from (state_cmdline_execute put
+         * it back), so this is the search itself: it finds the match, sets
+         * the '' mark, applies an offset ("/pat/e") and says so when it had
+         * to wrap. With 'incsearch' the start may have been moved (CTRL-G),
+         * and then the mark is already set, at the original position.
+         *
+         * Upstream searched twice from wherever 'incsearch' had left the
+         * cursor, forward and then back: the right match when the pattern was
+         * typed with 'incsearch' on and no offset, and two searches' worth of
+         * wrap warnings and errors.
+         */
+        (void)normal_search(&context->ca, cmdc, cmd,
+                            (context->ca.arg || !EQUAL_POS(context->returnPriorPosition, curwin->w_cursor))
+                                ? 0
+                                : SEARCH_MARK);
       }
       if (context->oap->op_type == OP_NOP)
       {
