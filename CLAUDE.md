@@ -243,10 +243,13 @@ For applications that need standard vim visual block behavior (text replicated o
 
 ## Known gaps
 
-None of these is started.
+As of 2026-11-11. None of these is started. vimango's `docs/VIM_COMMANDS.md` is the list its editor is tested against by hand.
 
 - **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
-- **`:s` with the `c` flag** has no prompt to confirm with.
+- **`:s` with the `c` flag** has no prompt to confirm with: `do_sub()` refuses it with an error.
+- **A script cannot ask the user.** `input()`, `inputsecret()`, `inputdialog()` and `inputlist()` return `''` or 0 at once, and the debugger continues (see "Keys that wait for another key"). That stops the hang; asking for real needs a callback to the embedder, which does not exist.
+- **Keys upstream commented out.** CTRL-\ CTRL-N in Insert mode is not a command: the two control characters are inserted as text. CTRL-\ e on a command line types `e`. CTRL-K inserts `^K` (digraphs are not compiled in).
+- **Listings are laid out for `Columns`** (80 unless set), whatever the embedder's width: `:registers` truncates there.
 - **`feedkeys()` with the `x` flag does nothing**: the place that would run the keys is a `TODO` (`getchar.c`, "Wire-up to sm_execute_normal"). Without the flag the keys go into the typeahead and are run after the current call.
 - `vimSetCursorAddCallback()` and its global still exist and are wired up in `libvim.c`; nothing calls them for a blockwise `I`/`A` any more.
 
@@ -270,7 +273,7 @@ A key that begins a longer mapping (`j` of `jk`) waits in the typeahead buffer. 
 
 ### Keys that wait for another key (2026-11)
 
-vim reads a second key with `plain_vgetc()` and a line with `getcmdline()`, and both wait. Nothing in libvim may: `vimInput()` must return. **A call to either that is still in the tree and can be reached is a hang** — `"=` was one. The pattern for replacing one: the state notes that it is owed a key (`ctrlr` in the Insert and command-line states, `is_ctrlg`, `is_ctrlv`) and handles it at the top of its next `execute` call; for a whole line, push the command-line state (`sm_push_cmdline('=', 0, 0)`) and read `ccline.cmdbuff` when the key that ended it comes back down (`COMPLETED_UNHANDLED` hands that key to the state underneath; `NULL` means `<Esc>`). CTRL-R is done this way in `edit.c` (`ins_reg_key()`) and `ex_getln.c` (top of `state_cmdline_execute()`), and `"=` / `@=` in `normal.c` (the `CMDLINE` return in `state_normal_cmd_execute()`). Commented out, and so merely missing: CTRL-\ CTRL-N and CTRL-\ e (CTRL-K waits too, but digraphs are not compiled in). **A waiting reader that is still in the tree gives up at once**: when a key is asked for and none is in the typeahead, `vgetorpeek()` hands back `<Esc>` (CTRL-C on a command line) — vim's own answer inside `:normal`, given always — so `input()` returns `''`, the debugger continues, a yes/no question is answered no. That is a floor, not support: the user is never asked. `:s` with the `c` flag is refused before it gets that far (`do_sub()`). Tests: `apitest/no_waiting.c`. Tests: `apitest/ctrl_r.c`.
+vim reads a second key with `plain_vgetc()` and a line with `getcmdline()`, and both wait. Nothing in libvim may: `vimInput()` must return. **A call to either that is still in the tree and can be reached is a hang** — `"=` was one. The pattern for replacing one: the state notes that it is owed a key (`ctrlr` in the Insert and command-line states, `is_ctrlg`, `is_ctrlv`) and handles it at the top of its next `execute` call; for a whole line, push the command-line state (`sm_push_cmdline('=', 0, 0)`) and read `ccline.cmdbuff` when the key that ended it comes back down (`COMPLETED_UNHANDLED` hands that key to the state underneath; `NULL` means `<Esc>`). CTRL-R is done this way in `edit.c` (`ins_reg_key()`) and `ex_getln.c` (top of `state_cmdline_execute()`), and `"=` / `@=` in `normal.c` (the `CMDLINE` return in `state_normal_cmd_execute()`). Commented out, and so missing (see "Known gaps" for what the keys do instead): CTRL-\ CTRL-N and CTRL-\ e (CTRL-K waits too, but digraphs are not compiled in). **A waiting reader that is still in the tree gives up at once**: when a key is asked for and none is in the typeahead, `vgetorpeek()` hands back `<Esc>` (CTRL-C on a command line) — vim's own answer inside `:normal`, given always — so `input()` returns `''`, the debugger continues, a yes/no question is answered no. That is a floor, not support: the user is never asked. `:s` with the `c` flag is refused before it gets that far (`do_sub()`). Tests: `apitest/no_waiting.c`. Tests: `apitest/ctrl_r.c`.
 
 ### A typed search (2026-11)
 
