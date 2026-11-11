@@ -307,6 +307,10 @@ void vimKey(char_u *key)
   vimInputCore(1 /*should_replace_termcodes*/, key);
 }
 
+int vimInputPending(void) { return typeahead_pending(); }
+
+void vimInputTimeout(void) { sm_execute_timeout(); }
+
 int vimVisualIsActive(void) { return VIsual_active; }
 
 int vimSelectIsActive(void) { return VIsual_select; }

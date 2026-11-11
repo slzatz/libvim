@@ -135,6 +135,10 @@ wrong, both of which the scripts handle:
   `/bin` and is not writable, so `make` exits non-zero after a successful link.
   Override it with `DEST_BIN=<writable dir>`.
 
+A test program ends with `MU_REPORT(); MU_RETURN();`. `return minunit_status;`
+is the status of the *last* test only: ten programs ended that way, and the
+scripts printed PASS for them whatever the tests before the last had done.
+
 Keep the suite `-Werror`-clean on current toolchains. `apitest/fileformats.c`
 used `sprintf()`, which the macOS SDK marks deprecated, and that alone broke the
 full-suite build until it was changed to `snprintf()`; prefer the bounded form
@@ -246,7 +250,7 @@ None of these is started.
 - **A bare `:let` never returns.** It lists every variable and waits, inside the call, for a key to page with. vimango refuses it. Anything else that pages its output is suspect.
 - **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
 - **`:s` with the `c` flag** has no prompt to confirm with.
-- **A multi-key mapping left-hand side loses its first key** (`inoremap jk <Esc>`): `sm_execute()` inserts each later key at offset 0 of the typeahead buffer, ahead of the one waiting. Appending instead (offset `typebuf.tb_len`, as `feedkeys()` does) is the likely fix; it changes every input path and has not been tried. `<C-r>` in an insert-mode right-hand side inserts a literal `^R`.
+- **`<C-r>` in an insert-mode mapping right-hand side** inserts a literal `^R`.
 - `vimSetCursorAddCallback()` and its global still exist and are wired up in `libvim.c`; nothing calls them for a blockwise `I`/`A` any more.
 
 ## What this fork changed
@@ -255,7 +259,9 @@ The whole account is in PATCHES.md. Here: what to know when working on each.
 
 ### Mappings (2026-11)
 
-`vimInit` raises `no_mapping` and `no_zero_mapping` so that `:map` stores and never expands; `vimSetMappingsEnabled(TRUE)` lowers them. The counters are adjusted by a delta, never assigned, because vim raises and lowers them itself around single keys (CTRL-V, digraphs, counts) — except in `vimInit`, which assigns the baseline of 1 so that calling it again (test harnesses do) does not stack raises. Tests: `apitest/mapping.c`.
+`vimInit` raises `no_mapping` and `no_zero_mapping` so that `:map` stores and never expands; `vimSetMappingsEnabled(TRUE)` lowers them. The counters are adjusted by a delta, never assigned, because vim raises and lowers them itself around single keys (CTRL-V, digraphs, counts) — except in `vimInit`, which assigns the baseline of 1 so that calling it again (test harnesses do) does not stack raises. 
+
+A key that begins a longer mapping (`j` of `jk`) waits in the typeahead buffer. `sm_execute()` appends each new key after it (it used to insert at the front, which lost the first key), so **the typeahead buffer can be non-empty between calls** — `vimInputPending()` says so. vim would give up on the mapping after `'timeoutlen'`; libvim has no clock, so the embedder calls `vimInputTimeout()` when the time is up, and `vgetorpeek()` then runs with `timedout` set. Keys sent with mappings off never wait and take a waiting key with them. `sm_execute_normal()` (`:normal`) still inserts at the front, as vim's `exec_normal_cmd()` does. Tests: `apitest/mapping.c`.
 
 ### Search highlights (2026-11)
 

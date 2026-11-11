@@ -235,12 +235,35 @@ void vimSetInputUnmapCallback(InputUnmapCallback unmapCallback);
  * mappings only around forwarding a user keystroke, so a user mapping never
  * rewrites the embedder's internal key sequences.
  *
- * Only single-key left-hand sides work reliably: a partially matched
- * multi-key mapping waits in the typeahead buffer, and libvim inserts each new
- * key at the front of it rather than after it.
+ * A key that begins a longer mapping ("j" when "jk" is mapped) is not acted
+ * on when it is sent: it waits for the next key to show whether the mapping
+ * is meant. See vimInputPending.
  */
 void vimSetMappingsEnabled(int enabled);
 int vimGetMappingsEnabled(void);
+
+/*
+ * vimInputPending / vimInputTimeout
+ *
+ * vimInputPending() is the number of bytes vimInput/vimKey were given and vim
+ * has not acted on yet. It is non-zero when the keys so far are the start of
+ * a longer mapping: with `inoremap jk <Esc>`, after "j". The next key decides
+ * - "k" completes the mapping, anything else is taken after the "j".
+ *
+ * vim itself waits 'timeoutlen' for that next key and then gives up on the
+ * mapping. libvim has no clock, so the embedder keeps the time: when
+ * vimInputPending() is non-zero after a key, and nothing more has been sent
+ * for 'timeoutlen' milliseconds (and 'timeout' is set), call
+ * vimInputTimeout(). The waiting keys are then taken as they are - or as the
+ * longest mapping they do complete, which is why the call belongs under the
+ * same vimSetMappingsEnabled() setting as the keys. It does nothing when
+ * nothing is waiting.
+ *
+ * Keys sent with mappings disabled never wait, and take any that are waiting
+ * with them, in the order they were sent.
+ */
+int vimInputPending(void);
+void vimInputTimeout(void);
 
 /*
  * vimSetFileWritesEnabled

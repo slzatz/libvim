@@ -1288,6 +1288,26 @@ int save_typebuf(void)
 }
 
 static int old_char = -1; /* character put back by vungetc() */
+
+/*
+ * libvim: TRUE while the embedder's timeout is being delivered. vgetorpeek()
+ * then treats a partly matched mapping as it does after 'timeoutlen': it stops
+ * waiting for the rest and returns what is there.
+ */
+static int typeahead_timed_out = FALSE;
+
+void set_typeahead_timed_out(int timed_out)
+{
+  typeahead_timed_out = timed_out;
+}
+
+/*
+ * libvim: the number of bytes waiting in the typeahead buffer.
+ */
+int typeahead_pending(void)
+{
+  return typebuf.tb_buf == NULL ? 0 : typebuf.tb_len;
+}
 static int old_mod_mask;  /* mod_mask for ungotten character */
 
 /*
@@ -1846,8 +1866,9 @@ vgetorpeek(int advance)
 #endif
   mapblock_T *mp_match;
   int mp_match_len = 0;
-  int timedout = FALSE;     /* waited for more than 1 second
-						for mapping to complete */
+  /* waited for more than 1 second for mapping to complete; libvim cannot
+   * wait, so the embedder says when the time is up (vimInputTimeout) */
+  int timedout = typeahead_timed_out;
   int mapdepth = 0;         /* check for recursive mapping */
   int mode_deleted = FALSE; /* set when mode has been deleted */
   int local_State;

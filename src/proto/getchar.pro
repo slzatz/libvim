@@ -47,6 +47,8 @@ int vpeekc_nomap(void);
 int vpeekc_any(void);
 int char_avail(void);
 void vungetc(int c);
+void set_typeahead_timed_out(int timed_out);
+int typeahead_pending(void);
 int fix_input_buffer(char_u *buf, int len);
 int input_available(void);
 int do_map(int maptype, char_u *arg, int mode, int abbrev);

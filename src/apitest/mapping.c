@@ -49,6 +49,9 @@ void test_setup(void)
   vimInput("g");
   vimInput("g");
 
+  // :mapclear leaves Insert-mode mappings; the unmap callback is counted
+  // from zero after both
+  vimExecute("mapclear!");
   vimExecute("mapclear");
   mappingCallbackCount = 0;
   unmappingCallbackCount = 0;
@@ -228,6 +231,173 @@ MU_TEST(test_counts_and_zero_unaffected_when_enabled)
                   "e second line of a test file") == 0);
 }
 
+/* Multi-key left-hand sides: the first key waits for the second. */
+
+#define LINE1 "This is the first line of a test file"
+
+MU_TEST(test_multikey_insert_mapping_completes)
+{
+  vimExecute("inoremap jk <Esc>");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("a");
+  vimInput("j");
+  mu_check(vimInputPending() == 1);
+  // nothing has been done with the j yet
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "a" LINE1) == 0);
+  vimInput("k");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(vimInputPending() == 0);
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "a" LINE1) == 0);
+}
+
+MU_TEST(test_multikey_first_key_is_kept_when_the_second_differs)
+{
+  vimExecute("inoremap jk <Esc>");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("j");
+  vimInput("x");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(vimInputPending() == 0);
+  mu_check((vimGetMode() & INSERT) == INSERT);
+  // in the order typed
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "jx" LINE1) == 0);
+}
+
+MU_TEST(test_multikey_first_key_twice)
+{
+  // "jj": the first j is not the start of "jk" once the second arrives, and
+  // the second waits in its turn.
+  vimExecute("inoremap jk <Esc>");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("j");
+  vimInput("j");
+  mu_check(vimInputPending() == 1);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "j" LINE1) == 0);
+  vimInput("k");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "j" LINE1) == 0);
+}
+
+MU_TEST(test_multikey_timeout_takes_the_key_as_typed)
+{
+  vimExecute("inoremap jk <Esc>");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("j");
+  mu_check(vimInputPending() == 1);
+  vimInputTimeout();
+  mu_check(vimInputPending() == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "j" LINE1) == 0);
+
+  // and the k that comes too late is only a k
+  vimInput("k");
+  vimSetMappingsEnabled(FALSE);
+  mu_check((vimGetMode() & INSERT) == INSERT);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "jk" LINE1) == 0);
+}
+
+MU_TEST(test_multikey_timeout_uses_the_shorter_mapping)
+{
+  vimExecute("inoremap j X");
+  vimExecute("inoremap jk Y");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("j");
+  mu_check(vimInputPending() == 1);
+  vimInputTimeout();
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "X" LINE1) == 0);
+  vimInput("j");
+  vimInput("k");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "XY" LINE1) == 0);
+}
+
+MU_TEST(test_timeout_with_nothing_waiting_does_nothing)
+{
+  vimSetMappingsEnabled(TRUE);
+  mu_check(vimInputPending() == 0);
+  vimInputTimeout();
+  vimInput("x");
+  vimInputTimeout();
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), &LINE1[1]) == 0);
+}
+
+MU_TEST(test_multikey_normal_mapping)
+{
+  vimExecute("nnoremap ,d dd");
+  vimSetMappingsEnabled(TRUE);
+  vimInput(",");
+  mu_check(vimInputPending() == 1);
+  vimInput("d");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(vimInputPending() == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the second line of a test file") == 0);
+}
+
+MU_TEST(test_three_key_mapping)
+{
+  vimExecute("nnoremap ,dd x");
+  vimSetMappingsEnabled(TRUE);
+  vimInput(",");
+  vimInput("d");
+  mu_check(vimInputPending() == 2);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), LINE1) == 0);
+  vimInput("d");
+  mu_check(vimInputPending() == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), &LINE1[1]) == 0);
+
+  // ",dw" is not the mapping: "," (nothing to repeat) and then "dw"
+  vimInput(",");
+  vimInput("d");
+  vimInput("w");
+  vimSetMappingsEnabled(FALSE);
+  mu_check(vimInputPending() == 0);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), &LINE1[5]) == 0);
+}
+
+MU_TEST(test_waiting_key_goes_first_when_mappings_are_turned_off)
+{
+  // An embedder sends its own keys with mappings off. The user's waiting
+  // key must still come before them: "j" and then <Esc>, not the reverse.
+  vimExecute("inoremap jk <Esc>");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("j");
+  vimSetMappingsEnabled(FALSE);
+  mu_check(vimInputPending() == 1);
+  vimKey("<esc>");
+
+  mu_check(vimInputPending() == 0);
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "j" LINE1) == 0);
+}
+
+MU_TEST(test_string_of_keys_keeps_its_order)
+{
+  vimExecute("inoremap jk <Esc>");
+  vimSetMappingsEnabled(TRUE);
+  vimInput("i");
+  vimInput("ajb");
+  vimInput("jk");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1), "ajb" LINE1) == 0);
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
@@ -238,6 +408,17 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_disabling_stops_expansion);
   MU_RUN_TEST(test_enable_is_idempotent);
   MU_RUN_TEST(test_counts_and_zero_unaffected_when_enabled);
+
+  MU_RUN_TEST(test_multikey_insert_mapping_completes);
+  MU_RUN_TEST(test_multikey_first_key_is_kept_when_the_second_differs);
+  MU_RUN_TEST(test_multikey_first_key_twice);
+  MU_RUN_TEST(test_multikey_timeout_takes_the_key_as_typed);
+  MU_RUN_TEST(test_multikey_timeout_uses_the_shorter_mapping);
+  MU_RUN_TEST(test_timeout_with_nothing_waiting_does_nothing);
+  MU_RUN_TEST(test_multikey_normal_mapping);
+  MU_RUN_TEST(test_three_key_mapping);
+  MU_RUN_TEST(test_waiting_key_goes_first_when_mappings_are_turned_off);
+  MU_RUN_TEST(test_string_of_keys_keeps_its_order);
 
   MU_RUN_TEST(test_simple_mapping);
   MU_RUN_TEST(test_map_same_keys_multiple_modes);
@@ -264,5 +445,5 @@ int main(int argc, char **argv)
   MU_RUN_SUITE(test_suite);
   MU_REPORT();
 
-  return minunit_status;
+  MU_RETURN();
 }

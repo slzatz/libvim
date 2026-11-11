@@ -170,16 +170,16 @@ void sm_execute_normal(char_u *cmd, int preserveState)
     state_current = previousState;
   }
 }
-void sm_execute(char_u *keys)
+/*
+ * sm_run
+ *
+ * Hand every key vim can get from the typeahead buffer to the current state.
+ * It stops when vpeekc() has nothing to give: the buffer is empty, or what is
+ * left is the start of a longer mapping, which stays there for the next key
+ * or for sm_execute_timeout().
+ */
+static void sm_run(void)
 {
-  char_u *keys_esc = vim_strsave_escape_csi(keys);
-  ins_typebuf(keys_esc, REMAP_YES, 0, FALSE, FALSE);
-  vim_free(keys_esc);
-
-  // Reset abbr_cnt after each input here,
-  // to enable correct cabbrev expansions
-  typebuf.tb_no_abbr_cnt = 0;
-
   if (state_current == NULL)
   {
     sm_push_normal();
@@ -221,4 +221,40 @@ void sm_execute(char_u *keys)
       }
     }
   }
+}
+
+void sm_execute(char_u *keys)
+{
+  // The keys go after whatever is waiting, as typed keys do in vim. What can
+  // be waiting is the start of a multi-key mapping ("j" of "jk"): putting the
+  // new key in front of it meant the mapping never completed and the first
+  // key was never seen.
+  char_u *keys_esc = vim_strsave_escape_csi(keys);
+  ins_typebuf(keys_esc, REMAP_YES, typebuf.tb_len, FALSE, FALSE);
+  vim_free(keys_esc);
+
+  // Reset abbr_cnt after each input here,
+  // to enable correct cabbrev expansions
+  typebuf.tb_no_abbr_cnt = 0;
+
+  sm_run();
+}
+
+/*
+ * sm_execute_timeout
+ *
+ * What vim does when 'timeoutlen' passes with a mapping half typed: stop
+ * waiting, and take the keys that are there as they are (or as the longest
+ * mapping they do complete).
+ */
+void sm_execute_timeout(void)
+{
+  if (typeahead_pending() == 0)
+  {
+    return;
+  }
+
+  set_typeahead_timed_out(TRUE);
+  sm_run();
+  set_typeahead_timed_out(FALSE);
 }

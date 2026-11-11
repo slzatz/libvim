@@ -101,18 +101,32 @@ An embedder that sends keys of its own as well as the user's can enable
 mappings only around forwarding a user keystroke — vimango does — so a user's
 `nnoremap s dd` cannot rewrite the embedder's internal `s`.
 
-**Known limits.** Single-key left-hand sides only. A partially matched
-multi-key mapping (`inoremap jk <Esc>`) leaves its first key waiting in the
-typeahead buffer, and `sm_execute()` inserts each later key at offset 0 —
-*ahead* of it — so the pair never completes and the first key is lost.
-Appending instead (offset `typebuf.tb_len`, as `feedkeys()` does) is the likely
-fix, but it changes every input path and has not been tried. Separately,
-`<C-r>` in an insert-mode right-hand side inserts a literal `^R`; that is
-libvim's insert state, not mapping.
+**Multi-key left-hand sides.** A key that begins a longer mapping
+(`inoremap jk <Esc>`, after `j`) waits in the typeahead buffer for the next
+one. `sm_execute()` used to insert each new key at offset 0 — *ahead* of the
+one waiting — so the pair never completed and the first key was never seen.
+It now appends (offset `typebuf.tb_len`, as `feedkeys()` does), so keys are
+taken in the order they were sent, by every route: a key sent with mappings
+off takes a waiting key with it, in front. With mappings disabled — the
+default — nothing ever waits, so nothing changes for an embedder that has not
+enabled them.
+
+vim gives up on a half-typed mapping after `'timeoutlen'`. libvim has no
+clock, so the embedder keeps the time: `vimInputPending()` says how many bytes
+are waiting, and `vimInputTimeout()` is the timeout — the waiting keys are
+taken as they are, or as the longest mapping they do complete (`j` mapped as
+well as `jk`). Inside, `vgetorpeek()` starts with its `timedout` flag set
+while the timeout is delivered; nothing else in it changed.
+
+**Known limit.** `<C-r>` in an insert-mode right-hand side inserts a literal
+`^R`; that is libvim's insert state, not mapping.
 
 **Tests.** `apitest/mapping.c`: not expanded by default, normal and visual
 mappings expanded when enabled (including an ex right-hand side), disabling
-stops expansion, enable is idempotent, and counts and `0` are unaffected.
+stops expansion, enable is idempotent, and counts and `0` are unaffected;
+two- and three-key mappings in Insert and Normal mode, the first key kept
+when the second is not the mapping's, the timeout with and without a shorter
+mapping, and a waiting key going ahead of keys sent with mappings off.
 
 ## Spell checking is back
 
