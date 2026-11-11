@@ -1192,6 +1192,14 @@ int get_keystroke(void)
     }
     else if (len > 0)
       ++waited; /* keep track of the waiting time */
+    else
+    {
+      /* libvim: nothing was typed and nothing can be: ui_inchar() reads
+       * nothing, and this loop would never end. <Esc> is the answer that
+       * declines whatever was asked (ask_yesno() takes it for "n"). */
+      n = ESC;
+      break;
+    }
 
     /* Incomplete termcode and not timed out yet: get more characters */
     if ((n = check_termcode(1, buf, buflen, &len)) < 0 && (!p_ttimeout || waited * 100L < (p_ttm < 0 ? p_tm : p_ttm)))

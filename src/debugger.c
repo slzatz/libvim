@@ -132,6 +132,14 @@ void do_debug(char_u *cmd)
 
     cmdline_row = msg_row;
     msg_starthere();
+    if (cmdline == NULL)
+    {
+      // libvim: there is no one to type a debugger command -- the prompt
+      // gives up at once (see vgetorpeek()) and vim would ask again, for
+      // ever. Go on with what was being run, as "cont" does.
+      debug_break_level = -1;
+      break;
+    }
     if (cmdline != NULL)
     {
       // If this is a debug command, set "last_cmd".

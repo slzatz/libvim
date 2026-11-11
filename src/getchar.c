@@ -2485,7 +2485,18 @@ vgetorpeek(int advance)
           continue;
         }
 
-        if (ex_normal_busy > 0)
+        /*
+         * libvim: "|| advance". vim would now wait for the user to type,
+         * and here that wait can never end: keys only arrive between calls,
+         * through vimInput(), and ui_inchar() reads nothing. The state
+         * machine never gets this far -- it takes a key only after vpeekc()
+         * has seen one -- so whoever did is one of vim's waiting readers:
+         * getcmdline() for input(), plain_vgetc() for a prompt. They looped
+         * here for ever. vim has the same problem inside ":normal" and this
+         * is its answer, now given always: the key that makes the reader
+         * give up.
+         */
+        if (ex_normal_busy > 0 || advance)
         {
           /* No typeahead left and inside ":normal".  Must return
 		     * something to avoid getting stuck.  When an incomplete

@@ -408,6 +408,42 @@ Inside an expression's own line `CTRL-R =` is refused, as in vim.
 
 **Tests.** `apitest/ctrl_r.c`.
 
+## Nothing waits for a key
+
+Nov 2026.
+
+**Upstream behavior.** vim asks the user things from deep inside a command:
+`input()`, `inputsecret()`, `inputdialog()` and `inputlist()` read a line or
+a number, the debugger (`:debug`, a breakpoint) reads a command. Each ends in
+`vgetc()` waiting for a key. In libvim a key cannot arrive during a call —
+keys come between calls, through `vimInput()`, and `ui_inchar()` reads
+nothing — so the wait was a loop that never ended. `:echo input('x')` hung
+the embedder, as did a mapping or a function that called it.
+
+**This fork.** vim has the same problem inside `:normal`, where the keys
+given to it can run out, and an answer for it: `vgetorpeek()` returns the key
+that makes the reader give up — `<Esc>`, or CTRL-C on a command line. That
+answer is now given whenever a key is asked for and none is waiting. The
+state machine is not affected: it takes a key only after `vpeekc()` has seen
+one, so it never asks for a key that is not there.
+
+- `input()`, `inputsecret()` and `inputdialog()` return `''`; `inputlist()`
+  returns `0`. It is not an interrupt: the script goes on.
+- Keys already in the typeahead are still the answer, as in vim: the rest of
+  a mapping after the call, or of a `:normal`. (`inputsave()` is vim's remedy
+  when that is not wanted.)
+- The debugger, finding no command, continues as `cont` does. vim would ask
+  again.
+- `get_keystroke()`, which reads `ui_inchar()` itself, returns `<Esc>`
+  (`ask_yesno()` takes that for "n").
+
+**What it means for an embedder.** A script cannot ask the user anything. An
+embedder that wants `input()` to work has to supply the answer another way;
+there is no callback for it yet.
+
+**Tests.** `apitest/no_waiting.c`. A regression there is a test that never
+finishes.
+
 ## An embedder can stop vim writing files, and restricted mode starts no shell
 
 Nov 2026.
