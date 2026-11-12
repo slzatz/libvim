@@ -243,14 +243,15 @@ For applications that need standard vim visual block behavior (text replicated o
 
 ## Known gaps
 
-As of 2026-11-11. None of these is started. vimango's `docs/VIM_COMMANDS.md` is the list its editor is tested against by hand.
+As of 2026-11-12. None of these is started. vimango's `docs/VIM_COMMANDS.md` is the list its editor is tested against by hand. **[TODO.md](TODO.md) is the longer list**: what a review that day found and did not fix — bugs with their cause and a proposed fix, as well as gaps — in the order worth doing. Read it before starting on any of these, and take an entry out when it is done.
 
-- **`` :runtime `cmd` `` segfaults** (outside restricted mode, where the backtick is refused first).
+- **`` :runtime `cmd` `` was recorded here as a segfault** (outside restricted mode, where the backtick is refused first). On 2026-11-12 eight forms of it gave `E79` or ran; none crashed. Not confirmed fixed.
 - **`:s` with the `c` flag** has no prompt to confirm with: `do_sub()` refuses it with an error.
 - **A script cannot ask the user.** `input()`, `inputsecret()`, `inputdialog()` and `inputlist()` return `''` or 0 at once, and the debugger continues (see "Keys that wait for another key"). That stops the hang; asking for real needs a callback to the embedder, which does not exist.
 - **Keys upstream commented out.** CTRL-\ CTRL-N in Insert mode is not a command: the two control characters are inserted as text. CTRL-\ e on a command line types `e`. CTRL-K inserts `^K` (digraphs are not compiled in).
 - **Listings are laid out for `Columns`** (80 unless set), whatever the embedder's width: `:registers` truncates there.
-- **`feedkeys()` with the `x` flag does nothing**: the place that would run the keys is a `TODO` (`getchar.c`, "Wire-up to sm_execute_normal"). Without the flag the keys go into the typeahead and are run after the current call.
+- **`feedkeys()` does nothing**, with or without the `x` flag: the body of `f_feedkeys()` (`evalfunc.c`) is commented out. `:source!` does nothing either; that one is the `TODO` in `getchar.c`, "Wire-up to sm_execute_normal".
+- **`<PasteStart>` segfaults** in Normal, Insert and Command-line mode (`bracketed_paste()`, `edit.c`), and **`:cq` exits the process** without the quit callback. Both are in TODO.md.
 - `vimSetCursorAddCallback()` and its global still exist and are wired up in `libvim.c`; nothing calls them for a blockwise `I`/`A` any more.
 
 ## What this fork changed
