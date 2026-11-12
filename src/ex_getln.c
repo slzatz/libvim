@@ -2412,6 +2412,25 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
 				   that occurs while typing a command should
 				   cause the command not to be executed. */
 
+  /*
+   * libvim: the key after CTRL-V has been read (state_insert_literal.c) and
+   * "ctrlv_ret" is the character to insert. This call is made with the key
+   * that ended the literal, which is not a command: it must not get as far
+   * as the tests below, where a <CR> ends the command line and CTRL-C
+   * abandons it. vim's getcmdline() goes from get_literal() straight to
+   * putting the character on the line, without abbreviation. Upstream took
+   * the literal up after those tests, so CTRL-V <CR> ran the command line --
+   * and so did CTRL-R of a register that holds a line, which vim types as
+   * the text, CTRL-V, <CR>.
+   */
+  if (context->is_ctrlv)
+  {
+    context->is_ctrlv = FALSE;
+    c = context->ctrlv_ret;
+    extra_char = NUL;
+    goto put_character;
+  }
+
   /* Get a character.  Ignore K_IGNORE and K_NOP, they should not do
 	 * anything, such as stop completion. */
 
@@ -2880,13 +2899,6 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
 
   context->do_abbr = TRUE; /* default: check for abbreviation */
 
-  /* Coming back from ctrl_v - handle that */
-  if (context->is_ctrlv)
-  {
-    c = context->ctrlv_ret;
-    context->is_ctrlv = FALSE;
-  }
-  else
   {
     /*
    * Big switch for a typed command line character.
@@ -3353,6 +3365,7 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
   /*
 	 * put the character in the command line
 	 */
+put_character:
   if (IS_SPECIAL(c) || mod_mask != 0)
     put_on_cmdline(get_special_key_name(c, mod_mask), -1, TRUE);
   else

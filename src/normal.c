@@ -643,6 +643,30 @@ void state_normal_cmd_cleanup(void *ctx)
 
 static int old_mapped_len = 0;
 
+/*
+ * libvim: go back to Insert mode after the one command CTRL-O was typed for,
+ * as the end of vim's normal_cmd() does. Not while the command goes on: an
+ * operator waiting for its motion, a register named for the command that
+ * follows ("a, or "= whose register is in keep_reg), Visual mode, commands
+ * still in the stuff buffer. Upstream tested the last of these only, so
+ * CTRL-O v and CTRL-O "a were back in Insert mode at once, with the selection
+ * or the register left behind.
+ * Returns TRUE when the Insert state was pushed.
+ */
+static int normal_restart_edit(normalCmd_T *context)
+{
+  if (restart_edit == 0 || VIsual_active || old_mapped_len != 0 || context->oap->op_type != OP_NOP || context->oap->regname != 0 || keep_reg != 0 || !stuff_empty())
+    return FALSE;
+
+  finish_op = FALSE; /* the command is over: no operator is pending */
+
+  /* "restart_edit" is the mode to go back to, as vim's edit(restart_edit,
+   * ...): 'R' and 'V' are Replace and Virtual Replace mode. Upstream passed
+   * 'i', so CTRL-O in Replace mode came back in Insert mode. */
+  sm_push_insert(restart_edit, FALSE, context->ca.count1);
+  return TRUE;
+}
+
 executionStatus_T state_normal_cmd_execute(void *ctx, int c)
 {
   LANGMAP_ADJUST(c, get_real_state() != SELECTMODE);
@@ -715,18 +739,24 @@ executionStatus_T state_normal_cmd_execute(void *ctx, int c)
           set_reg_var('=');
         }
       }
-      if (context->oap->op_type == OP_NOP)
-      {
-        start_normal_mode(context);
-      }
-      else
+      if (context->oap->op_type != OP_NOP)
       {
         // We have a pending operator, so finish it
         if (finish_op || VIsual_active)
         {
           do_pending_operator(&context->ca, context->old_col, FALSE);
         }
+      }
 
+      /*
+       * libvim: CTRL-O : or CTRL-O / from Insert mode. The command line was
+       * the one command, so Insert mode is due now, as it is after any other
+       * command (below). Upstream did not look here: Insert mode came back
+       * only after the next key had been run as a Normal mode command.
+       */
+      (void)normal_restart_edit(context);
+
+      {
         int stateMode = sm_get_current_mode();
         if (stateMode != NORMAL)
         {
@@ -952,6 +982,25 @@ restart_state:
     context->ca.arg = nv_cmds[context->idx].cmd_arg;
     (nv_cmds[context->idx].cmd_func)(&context->ca);
 
+    /*
+     * libvim: "v", "V" or CTRL-V between an operator and its motion ("dvj")
+     * says how the motion is to be taken, and nv_visual() clears finish_op
+     * for it: "operator doesn't finish now but later". vim's normal_cmd()
+     * returns there and takes the motion as the next command. Upstream set
+     * finish_op again just below, and the operator ran at once, with "v" as
+     * its motion.
+     */
+    if (previous_finish_op && !finish_op && oap->op_type != OP_NOP)
+    {
+      finish_op = TRUE;
+      context->state = NORMAL_INITIAL;
+      context->ca.count0 = 0;
+#ifdef FEAT_EVAL
+      context->set_prevcount = TRUE;
+#endif
+      return HANDLED;
+    }
+
     finish_op = (oap->op_type != OP_NOP);
 
     int stateMode = sm_get_current_mode();
@@ -1006,10 +1055,7 @@ restart_state:
       do_pending_operator(&context->ca, context->old_col, FALSE);
     }
 
-    if (restart_edit != 0 && stuff_empty())
-    {
-      sm_push_insert('i', FALSE, context->ca.count1);
-    }
+    (void)normal_restart_edit(context);
 
     /*
      * Some operators, like 'change', will cause a transition to a new mode.

@@ -268,6 +268,35 @@ MU_TEST(test_cmdline_expression_abandoned)
   mu_check(strcmp(said, "[x]") == 0);
 }
 
+MU_TEST(test_cmdline_register_of_a_line_is_not_run)
+{
+  // A yanked line ends in a line break. vim puts it on the command line as
+  // the text and a literal <CR> (it types CTRL-V <CR>), to be looked at;
+  // the <CR> used to end the command line, and the line was run.
+  vimExecute("call setline(1, '2,3d')");
+  type("yy:<c-r>0");
+  mu_check((vimGetMode() & CMDLINE) == CMDLINE);
+  mu_check(strcmp((char *)vimCommandLineGetText(), "2,3d\r") == 0);
+  mu_check(vimBufferGetLineCount(curbuf) == 3);
+
+  type("<esc>");
+  mu_check(vimBufferGetLineCount(curbuf) == 3);
+
+  // two lines: a <CR> after each
+  type("yj:<c-r>0");
+  mu_check((vimGetMode() & CMDLINE) == CMDLINE);
+  mu_check(strcmp((char *)vimCommandLineGetText(), "2,3d\rThis is the second line of a test file\r") == 0);
+  type("<esc>");
+
+  // and in a replacement, where a <CR> breaks the line
+  vimExecute("call setline(1, 'one two')");
+  vimExecute("let @b = \"X\\n\"");
+  type(":s/ /<c-r>b/<cr>");
+  mu_check(vimBufferGetLineCount(curbuf) == 4);
+  mu_check(line_is(1, "oneX"));
+  mu_check(line_is(2, "two"));
+}
+
 MU_TEST(test_cmdline_register_abandoned)
 {
   type(":echo '<c-r><esc>y'<cr>");
@@ -328,6 +357,7 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_cmdline_register_in_a_search);
   MU_RUN_TEST(test_cmdline_expression);
   MU_RUN_TEST(test_cmdline_expression_abandoned);
+  MU_RUN_TEST(test_cmdline_register_of_a_line_is_not_run);
   MU_RUN_TEST(test_cmdline_register_abandoned);
 
   MU_RUN_TEST(test_put_an_expression);

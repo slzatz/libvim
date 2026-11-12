@@ -98,14 +98,56 @@ void sm_push_insert_operator(oparg_T *oap, long count1)
 }
 
 /*
+ * sm_handle_key
+ *
+ * Give one key to the current state, and take the state off the stack if the
+ * key ended it. Returns FALSE when the state would not take the key.
+ */
+static int sm_handle_key(int c)
+{
+  if (state_current == NULL)
+  {
+    sm_push_normal();
+  }
+
+  sm_T *current = state_current;
+  executionStatus_T result = current->execute_fn(state_current->context, c);
+
+  switch (result)
+  {
+  case HANDLED:
+    break;
+  case UNHANDLED:
+    vungetc(c);
+    return FALSE;
+  case COMPLETED_UNHANDLED:
+    vungetc(c);
+    current->cleanup_fn(state_current->context);
+    state_current = (sm_T *)current->prev;
+    vim_free(current);
+    break;
+  case COMPLETED:
+    current->cleanup_fn(state_current->context);
+    state_current = (sm_T *)current->prev;
+    vim_free(current);
+    break;
+  }
+
+  return TRUE;
+}
+
+/*
  * sm_execute_normal
  *
- * Like sm_execute, but if there is no active state,
- * defaults to normal mode.
+ * ":normal {keys}": run the keys as Normal mode commands, as vim's
+ * exec_normal() does. With "preserveState" they run in a Normal state of
+ * their own and the states that were there are put back afterwards.
  */
 void sm_execute_normal(char_u *cmd, int preserveState)
 {
   sm_T *previousState = state_current;
+  int unfinished = 50; /* keys to spend on ending a half-typed command */
+
   if (preserveState)
   {
     state_current = NULL;
@@ -120,39 +162,36 @@ void sm_execute_normal(char_u *cmd, int preserveState)
   ins_typebuf(keys_esc, REMAP_YES, 0, FALSE, FALSE);
   vim_free(keys_esc);
 
-  if (state_current != NULL)
+  while (!got_int)
   {
-    while (vpeekc() != NUL && typebuf.tb_len > 0)
+    /*
+     * There is a key to run while one is in the typeahead buffer, in the
+     * stuff buffer, or was handed back by a state that ended. The stuff
+     * buffer is where vim puts the commands it translates: "x" is "dl", "D"
+     * is "d$", "Y", "s", "C", "S", "X" and "&" likewise. Upstream looked at
+     * the typeahead buffer alone, so the last "x" of ":normal x" was left
+     * there and never ran, or ran on the next line of a range.
+     */
+    if (typebuf.tb_len == 0 && stuff_empty() && !vungetc_pending())
     {
-      int c = vgetc();
-      if (state_current == NULL)
+      /*
+       * The keys are used up. A state above the one ":normal" started in
+       * is a command that was not finished: ":normal Afoo" is still in
+       * Insert mode, ":normal :s/a/b" on a command line. vim ends it:
+       * vgetc(), asked for a key with none there, gives <Esc> (CTRL-C on a
+       * command line), and the state takes it as it would from the user.
+       * Upstream freed the state instead, so the insert was never ended and
+       * "." afterwards, repeating it, stayed in Insert mode.
+       */
+      if (!preserveState || state_current == NULL || state_current->prev == NULL || --unfinished < 0)
       {
-        sm_push_normal();
-      }
-
-      sm_T *current = state_current;
-      executionStatus_T result = current->execute_fn(state_current->context, c);
-
-      switch (result)
-      {
-      case HANDLED:
-        break;
-      case UNHANDLED:
-        vungetc(c);
-        return;
-        break;
-      case COMPLETED_UNHANDLED:
-        vungetc(c);
-        current->cleanup_fn(state_current->context);
-        state_current = (sm_T *)current->prev;
-        vim_free(current);
-        break;
-      case COMPLETED:
-        current->cleanup_fn(state_current->context);
-        state_current = (sm_T *)current->prev;
-        vim_free(current);
         break;
       }
+    }
+
+    if (!sm_handle_key(vgetc()))
+    {
+      break;
     }
   }
 
@@ -185,40 +224,11 @@ static void sm_run(void)
     sm_push_normal();
   }
 
-  if (state_current != NULL)
+  while (vpeekc() != NUL)
   {
-    while (vpeekc() != NUL)
+    if (!sm_handle_key(vgetc()))
     {
-      int c = vgetc();
-
-      if (state_current == NULL)
-      {
-        sm_push_normal();
-      }
-
-      sm_T *current = state_current;
-      executionStatus_T result = current->execute_fn(state_current->context, c);
-
-      switch (result)
-      {
-      case HANDLED:
-        break;
-      case UNHANDLED:
-        vungetc(c);
-        return;
-        break;
-      case COMPLETED_UNHANDLED:
-        vungetc(c);
-        current->cleanup_fn(state_current->context);
-        state_current = (sm_T *)current->prev;
-        vim_free(current);
-        break;
-      case COMPLETED:
-        current->cleanup_fn(state_current->context);
-        state_current = (sm_T *)current->prev;
-        vim_free(current);
-        break;
-      }
+      return;
     }
   }
 }

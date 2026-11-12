@@ -116,7 +116,7 @@ does not affect the generated config.
 ### Running the API tests
 
 `./build-macos.sh --tests` (or `./build-linux.sh --tests`) builds and runs all
-60 of them and reports pass/fail per test. To run a single test by hand:
+67 of them and reports pass/fail per test. To run a single test by hand:
 
 ```bash
 cd src
@@ -284,6 +284,51 @@ vim reads a second key with `plain_vgetc()` and a line with `getcmdline()`, and 
 What vim writes a piece at a time — `msg_puts()`, `msg_putchar()`, `msg_outtrans()`, `msg_advance()`: every listing — comes down to `msg_puts_attr_len()`. There `msg_listing_put()` keeps `msg_col` and `msg_didout` up to date (**nothing else does**; with `msg_col` standing still `msg_advance()` never returns, which was the bare `:let` hang) and, while `do_cmdline()` is running a command, collects the text. `msg_listing_end()` at the outermost `do_cmdline()` sends it as one `MSG_INFO` message; `msg2_send()` flushes first, to keep order. `do_cmdline()` has one exit after its recursion check, and the begin/end pair relies on that.
 
 A new command that says nothing: check `msg_silent`, then whether it is one upstream gave to a callback (`:version`, `:messages` did). One that says something twice sends a message of its own *and* writes to the screen: wrap the screen part in `msg_listing_pause()` / `msg_listing_resume()`, as `ex_echo()` does. Tests: `apitest/listings.c`.
+
+### `:normal` (2026-11)
+
+`sm_execute_normal()` (`state_machine.c`) is vim's `exec_normal()`. Its loop
+runs while a key is in the typeahead buffer, in the **stuff buffer** — where
+vim puts the commands it translates, `x` → `dl`, `D`, `C`, `s`, `S`, `X`, `Y`,
+`&` — or was handed back by a state that ended (`vungetc_pending()`,
+`getchar.c`). **A loop that runs keys and looks at `typebuf.tb_len` alone loses
+the last translated command**; `vpeekc()` cannot be the test there, because
+inside `:normal` it answers `<Esc>` when there is nothing. When the keys are
+used up, a state above the one `:normal` started in is ended with the key
+`vgetc()` gives (`<Esc>`, CTRL-C on a command line), not freed: freeing it left
+the insert unended and `.` then stayed in Insert mode. `sm_handle_key()` is
+the one place a key is given to a state; `sm_run()` uses it too. Tests:
+`apitest/ex_normal.c`.
+
+### CTRL-O, and `v` after an operator (2026-11)
+
+Both are in `state_normal_cmd_execute()` (`normal.c`), where libvim's version
+of the end of vim's `normal_cmd()` had lost conditions. If a Normal mode
+command misbehaves only after CTRL-O or only with an operator pending, compare
+that function's end with vim 8.1 first.
+
+- `normal_restart_edit()` goes back to Insert mode after CTRL-O, on vim's
+  conditions: no operator pending, no register named (`oap->regname`, or
+  `keep_reg` for `"=`), not in Visual mode, stuff buffer empty. It is called
+  after a command *and* in the `CMDLINE` return, which is where `CTRL-O :` and
+  `CTRL-O /` end — and where a typed `:startinsert` takes effect. It pushes
+  the Insert state with `restart_edit` as its command (`'R'`, `'V'`: Replace
+  mode comes back as Replace mode). `vimExecute("startinsert")` only sets
+  `restart_edit`; nothing pushes Insert mode until a Normal mode command
+  ends. Tests: `apitest/insert_ctrl_o.c`.
+- `nv_visual()` with an operator pending (`dvj`) clears `finish_op`, and
+  the state returns to wait for the motion instead of setting `finish_op`
+  again and running the operator. Tests: `apitest/forced_motion.c`.
+
+### CTRL-V on the command line (2026-11)
+
+`state_cmdline_execute()` (`ex_getln.c`) is called with the key that *ended*
+the literal (`state_insert_literal.c`) and finds the character in
+`ctrlv_ret`. That is handled first, before anything looks at the key, and
+jumps to `put_character`: tested later, a `<CR>` after CTRL-V ran the command
+line, and so did CTRL-R of a register holding a line, which vim types as text,
+CTRL-V, `<CR>`. Anything new at the top of that function goes below the
+`is_ctrlv` block. Tests: `apitest/cmdline.c`, `apitest/ctrl_r.c`.
 
 ### Visual Block I/A Fix (2026-01)
 

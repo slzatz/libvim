@@ -1308,6 +1308,17 @@ int typeahead_pending(void)
 {
   return typebuf.tb_buf == NULL ? 0 : typebuf.tb_len;
 }
+
+/*
+ * libvim: TRUE when vungetc() has put a key back that is still to be read. A
+ * state that ends hands the key that ended it to the state underneath this
+ * way (COMPLETED_UNHANDLED), and that key is in neither the typeahead buffer
+ * nor the stuff buffer.
+ */
+int vungetc_pending(void)
+{
+  return old_char != -1;
+}
 static int old_mod_mask;  /* mod_mask for ungotten character */
 
 /*

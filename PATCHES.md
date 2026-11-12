@@ -444,6 +444,134 @@ there is no callback for it yet.
 **Tests.** `apitest/no_waiting.c`. A regression there is a test that never
 finishes.
 
+## `:normal` runs all of its keys, and ends what they leave unfinished
+
+Nov 2026.
+
+**Upstream behavior.** Two things in `sm_execute_normal()`, which is
+`:normal`:
+
+- **The last command was lost if vim translates it.** `x` is `dl`, `X` is
+  `dh`, `D` is `d$`, `C` is `c$`, `s` is `cl`, `S` is `cc`, `Y` is `yy` and
+  `&` is `:s\r`: vim puts the translation in the stuff buffer and reads it
+  next. The loop ran while the *typeahead* buffer had keys, so the
+  translation of the last key was never read. `:normal x` did nothing;
+  `:normal ifoo<Esc>x` inserted and did not delete; and with a range each
+  line ran what the line before had left — `:%normal x` deleted the first
+  character of every line but the first.
+- **An unfinished command was thrown away, not ended.** `:normal Afoo` is
+  still in Insert mode when the keys run out. vim ends it: `vgetc()`, with
+  nothing to give, gives `<Esc>` (CTRL-C on a command line). libvim freed the
+  state instead. The text was there, but the insert had never ended: the
+  cursor was one column too far right, and `.` afterwards — repeating an
+  insert with no `<Esc>` at its end — stayed in Insert mode, where the keys
+  typed next went into the text.
+
+**This fork.** The loop runs while there is a key in the typeahead buffer or
+the stuff buffer, or one handed back by a state that ended. When they are used
+up and a state is still above the Normal state `:normal` started in, that
+state is given the key `vgetc()` gives — `<Esc>`, or CTRL-C on a command line —
+until it is gone. So, as in vim: `:%normal A;` leaves Normal mode, with the
+cursor on the `;` and `.` repeating the append; `:normal :s/a/b` (no `<CR>`)
+and `:normal /pattern` are abandoned; `:normal d` leaves no operator pending.
+
+**If you relied on the old behavior.** Nothing sensible could: the commands
+above did nothing or ran on the wrong line.
+
+**Tests.** `apitest/ex_normal.c`.
+
+## CTRL-O in Insert mode is one command
+
+Nov 2026.
+
+**Upstream behavior.** After CTRL-O, libvim went back to Insert mode when a
+key had been run and the stuff buffer was empty. vim's test has more to it,
+and without the rest:
+
+- **`CTRL-O :cmd<CR>` and `CTRL-O /pattern<CR>` did not return to Insert
+  mode.** Nothing looked when the command line came back. The *next key* was
+  run as a Normal mode command, and Insert mode resumed after that: `x`
+  typed after `<C-o>:w<CR>` deleted a character. The same in a mapping:
+  `inoremap <F2> <C-o>:set list!<CR>`.
+- **`CTRL-O v`** was back in Insert mode at once, with Visual mode still on;
+  the motion and operator that followed were typed as text.
+- **`CTRL-O "a`** likewise: `<C-o>"ayy` named the register and typed `yy`.
+- After a command vim translates (`CTRL-O x`, which is `dl`), `vimGetMode()`
+  reported `OP_PENDING` once Insert mode was left, until the next key.
+- **From Replace mode it came back in Insert mode**: `R`, CTRL-O, a command,
+  and what was typed next was inserted, not written over the text.
+
+**This fork.** Insert mode is restarted as at the end of vim's `normal_cmd()`:
+not while an operator waits for its motion, a register has been named for the
+command that follows (`"a`, or `"=` with its expression typed), or Visual mode
+is on; and it is restarted when a command line returns, run or abandoned.
+`vimGetMode()` after `CTRL-O :` is `CMDLINE`, and `INSERT` again at the `<CR>`.
+The mode restarted is the one CTRL-O was typed in — Insert, Replace (`R`) or
+Virtual Replace (`gR`).
+
+`:startinsert`, `:startinsert!`, `:startreplace` and `:startgreplace` ask for
+Insert mode by the same means, and so now work when typed or run from a
+mapping: Insert mode starts at the `<CR>`. Before, the next key was run as a
+Normal mode command first. Given to `vimExecute()` they are as they were —
+no key is being handled, so Insert mode starts after the next Normal mode
+command.
+
+**If you relied on the old behavior.** An embedder that sent a key after
+`CTRL-O :cmd<CR>` expecting Normal mode now types it. Send `<Esc>` first.
+
+**Tests.** `apitest/insert_ctrl_o.c`.
+
+## `v`, `V` and CTRL-V after an operator force the motion's type
+
+Nov 2026.
+
+**Upstream behavior.** Between an operator and its motion, `v`, `V` and
+CTRL-V say how the motion is to be taken: `dvj` is characterwise (from the
+cursor to the same column of the next line), `dVw` linewise, `d<C-V>j`
+blockwise, and `v` before an inclusive motion makes it exclusive (`dve`). vim's
+`nv_visual()` notes the type and clears `finish_op` — "operator doesn't finish
+now but later". libvim set `finish_op` again as soon as the command function
+returned, so the operator ran at once with the `v` as its motion, and the real
+motion was then a command by itself: `dvj` deleted one character and moved
+down a line; `d<C-V>j` deleted nothing.
+
+**This fork.** The operator goes on waiting, as in vim; `vimGetMode()` is still
+`OP_PENDING` after the `v` and `vimGetPendingOperator()` still reports the
+operator. Counts, `.` and `<Esc>` behave as they do for any pending operator.
+
+**Tests.** `apitest/forced_motion.c`.
+
+## On the command line, CTRL-V `<CR>` is a character, and CTRL-R does not run a line
+
+Nov 2026.
+
+**Upstream behavior.** After CTRL-V the next key is taken literally. The
+command-line state reads it in a state of its own and takes the character up
+when that returns — but it did so *after* testing the returning key for the
+keys that end a command line. So CTRL-V `<CR>` ran the command line instead of
+putting a `^M` on it (`:s/x/^M/` could not be typed).
+
+That reached further than CTRL-V. vim puts a register on the command line by
+typing it, with CTRL-V before any character that would end the line, and a
+register holding whole lines ends each in a `<CR>`. So **CTRL-R of a yanked
+line ran the command line**: `yy` on a line reading `2,3d`, then `:` CTRL-R
+`0`, deleted two lines with no `<CR>` typed. An embedder that takes `<CR>`
+itself, to check what is about to run, never saw that one — it came from
+inside libvim.
+
+**This fork.** The literal is taken up first, and goes straight onto the
+command line, as in vim's `getcmdline()`. CTRL-V `<CR>`, CTRL-V `<Esc>` and
+CTRL-V CTRL-C insert the character. CTRL-R of a line puts the text and a `^M`
+on the command line and leaves it there: `vimCommandLineGetText()` ends in
+`"\r"`.
+
+**If you relied on the old behavior.** A register that is meant to run as a
+command is run with `:@a`, not by putting it on the command line.
+
+**Tests.** `apitest/cmdline.c` (`test_insert_literal_keys_that_end_the_line`,
+`test_insert_literal_cr_in_a_substitute`) and `apitest/ctrl_r.c`
+(`test_cmdline_register_of_a_line_is_not_run`).
+
 ## An embedder can stop vim writing files, and restricted mode starts no shell
 
 Nov 2026.
