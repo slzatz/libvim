@@ -1,0 +1,162 @@
+# CTRL-O from Insert and Replace mode with every kind of command after it, and
+# "v", "V" and CTRL-V between an operator and its motion. These are the cases
+# the fixes of 2026-11-12 were checked with; all agree with vim but the few
+# README.md explains.
+#
+# For compare.sh.
+
+dvj
+dVw
+d<c-v>j
+dvj.
+dve
+dvw
+dvb
+dv$
+dv0
+dvk
+jdvk
+dVl
+dV$
+d<c-v>l
+d<c-v>jw
+d<c-v>3l
+wd<c-v>j
+yvjp
+yVlp
+y<c-v>jp
+cvjX<esc>
+cVwX<esc>
+c<c-v>jX<esc>
+2dvj
+dv2j
+3dv2l
+dvvj
+dvVj
+dVvj
+dv<c-v>j
+gUvj
+g~Vw
+>vj
+>Vl
+dv/two<cr>
+dV/two<cr>
+d<c-v>/two<cr>
+dvap
+dviw
+dvfo
+dvto
+dv;
+dvG
+dvgg
+jjdvgg
+dvip
+"adVwu"ap
+dv<esc>x
+dV<esc>x
+dvu
+dvix
+dvd
+dVd
+dvx
+i<c-o>vld<esc>
+i<c-o>vldZ<esc>
+i<c-o>"ayyZ<esc>"ap
+i<c-o>"ayyZ<esc>
+i<c-o>:s/a/b/<cr>X<esc>
+i<c-o>:s/a/b/<cr>XX<esc>
+i<c-o>:<esc>X<esc>
+A<c-o>/two<cr>X<esc>
+A<c-o>?alpha<cr>X<esc>
+i<c-o>dwX<esc>
+i<c-o>"=6*7<cr>pZ<esc>
+i<c-o>"aywZ<esc>"ap
+i<c-o>"_dwZ<esc>
+i<c-o>3lX<esc>
+i<c-o>xX<esc>
+i<c-o>DX<esc>
+i<c-o>YX<esc>p
+i<c-o>ppX<esc>
+yiwi<c-o>pX<esc>
+yiwi<c-o>"0pX<esc>
+i<c-o>VdX<esc>
+i<c-o>vjdX<esc>
+i<c-o><c-v>jdX<esc>
+i<c-o>v<esc>X<esc>
+i<c-o>viwyX<esc>p
+i<c-o>viwcZ<esc>
+i<c-o>vlcZ<esc>X
+i<c-o>vl<c-g>Z<esc>
+A<c-o>vbdX<esc>
+i<c-o>:normal Ax<cr>y<esc>
+i<c-o>:normal x<cr>y<esc>
+i<c-o>:2<cr>y<esc>
+i<c-o>:nosuch<cr>y<esc>
+i<c-o>:s/zz/y/<cr>y<esc>
+i<c-o>/nosuch<cr>y<esc>
+i<c-o>:d<cr>y<esc>
+i<c-o>:d|d<cr>y<esc>
+i<c-o>@:y<esc>
+i<c-o>qaxqy<esc>@a
+i<c-o>maX<esc>'a
+i<c-o>'aX<esc>
+i<c-o>gUiwX<esc>
+i<c-o>g~~X<esc>
+i<c-o>>>X<esc>
+i<c-o>JX<esc>
+i<c-o>uX<esc>
+i<c-o>.X<esc>
+xi<c-o>.X<esc>
+i<c-o>rZX<esc>
+i<c-o>fnX<esc>
+i<c-o>dfnX<esc>
+i<c-o>diwX<esc>
+i<c-o>ciwZ<esc>X
+i<c-o>ccZ<esc>X
+i<c-o>sZ<esc>X
+i<c-o>oZ<esc>X
+i<c-o>AZ<esc>X
+i<c-o>iZ<esc>X
+i<c-o>RZ<esc>X
+i<c-o>zzX<esc>
+i<c-o>ggX<esc>
+i<c-o>GX<esc>
+i<c-o>$X<esc>
+A<c-o>0X<esc>
+i<c-o>*X<esc>
+i<c-o>nX<esc>
+i<c-o>3<c-o>X<esc>
+i<c-o>d<esc>X<esc>
+i<c-o>"<esc>X<esc>
+i<c-o>zX<esc>
+i<c-o>gX<esc>
+i<c-o><c-c>X<esc>
+ifoo<c-o>0<c-o>$X<esc>
+:inoremap x <lt>C-o>:s/a/b/<lt>CR><cr>ixz<esc>
+:inoremap x <lt>C-o>dd<cr>ixz<esc>
+:inoremap x <lt>C-o>vld<cr>ixz<esc>
+:inoremap x <lt>C-o>"ayy<cr>ixz<esc>"ap
+:inoremap x <lt>C-o>/two<lt>CR><cr>ixz<esc>
+:inoremap <lt>expr> x "\<lt>C-o>:d\<lt>CR>"<cr>ixz<esc>
+:nnoremap x i<lt>C-o>:d<lt>CR>z<lt>Esc><cr>x
+:normal i<c-v><c-o>:d<c-v><cr>z<cr>
+RXY<c-o>lZ<esc>
+RXY<c-o>:s/n/N/<cr>Z<esc>
+gRXY<c-o>lZ<esc>
+:startreplace<cr>yz<esc>
+:startgreplace<cr>yz<esc>
+:startinsert<cr>yz<esc>
+:startinsert!<cr>yz<esc>
+A<c-o>hZ<esc>
+A<c-o>:s/n/N/<cr>Z<esc>
+ifoo<c-o>$Z<esc>
+A<c-o>0Z<esc>
+RXY<c-o>vld<esc>
+RXY<c-o>vldZ<esc>
+RXY<c-o>"ayyZ<esc>
+RXY<c-o>dwZ<esc>
+RXY<c-o>xZ<esc>
+i<c-o>3lXY<esc>
+i<c-o>3xXY<esc>
+3ix<c-o>lY<esc>
+3ix<c-o>:s/n/N/<cr>Y<esc>

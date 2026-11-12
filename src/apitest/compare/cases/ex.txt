@@ -1,0 +1,371 @@
+# Ex commands typed on the command line: ranges, :g, :normal, undo, registers
+# with :let, :command, and mappings and abbreviations of every kind.
+#
+# For compare.sh. Two cases are meant not to end -- ":nmap x xx" then "x", and
+# ":imap x yx" -- and take the full timeout in libvim; vim, with no terminal,
+# gets out of them. ":call feedkeys()" does nothing in libvim (TODO.md).
+
+:2,4d<cr>
+:2m0<cr>
+:1t$<cr>
+:1,3j<cr>
+:2,3><cr>
+:%sort!<cr>
+:sort u<cr>
+:sort n<cr>
+:sort /\w\+ /<cr>
+:sort r /o.*/<cr>
+:%normal A;<cr>
+:2,3normal Ix<cr>
+:g/two/d<cr>
+:v/a/d<cr>
+:g/a/s/a/X/g<cr>
+:g/a/normal Ax<cr>
+:g/a/normal x<cr>
+:g!/a/d<cr>
+:g/o/m0<cr>
+:g/^/t.<cr>
+:g/a/-1j<cr>
+:g/a/g/b/d<cr>
+:g/a/exe "normal dw"<cr>
+:g/\(/d<cr>
+:g/a/<cr>
+:g/a<cr>
+:g<cr>
+:g//d<cr>
+:2,3g/o/d<cr>
+:g/o/.,+1d<cr>
+:g/a/u<cr>
+:g/a/normal u<cr>
+:retab<cr>
+:%retab! 4<cr>
+:center<cr>
+:%center 20<cr>
+:right 30<cr>
+:left 4<cr>
+:1ka<cr>:'ad<cr>
+:mark a<cr>jj:'a,.d<cr>
+:3<cr>D
+:$<cr>D
+:42<cr>D
+:+2<cr>D
+:-<cr>D
+:/two/<cr>D
+:?alpha?<cr>D
+:/two/;+1d<cr>
+:/two/,/four/d<cr>
+:\/d<cr>
+:\?d<cr>
+:\&d<cr>
+:'<lt>,'>d<cr>
+Vj:d<cr>
+Vj:<c-u>d<cr>
+vj<esc>:'<lt>,'>s/o/0/g<cr>
+vj<esc>:*d<cr>
+:0d<cr>
+:6d<cr>
+:5,2d<cr>
+:%d<cr>
+:%d<cr>u
+:,+1d<cr>
+:.,$d<cr>
+:1;+1d<cr>
+:2;/four/d<cr>
+:d 2<cr>
+:d x<cr>"xp
+:2y<cr>p
+:2,3y a<cr>"ap
+:pu<cr>
+:2y<cr>:0pu<cr>
+:2y<cr>:pu!<cr>
+:pu =6*7<cr>
+:pu ='a\nb'<cr>
+:2co0<cr>
+:2copy $<cr>
+:2,3m$<cr>
+:m+1<cr>
+:m-2<cr>
+:m0<cr>
+:1,2m1<cr>
+:1,3m2<cr>
+:><cr>
+:>><cr>
+:> 3<cr>
+:<lt><cr>
+:2j!<cr>
+:j 3<cr>
+:1,3j!<cr>
+:k a<cr>
+:norm! x<cr>
+:norm 3x<cr>
+:norm! ixyz<cr>
+:2,3norm .<cr>
+x:2,3norm .<cr>
+:undo<cr>
+x:undo<cr>
+xx:undo 1<cr>
+xx:undo 0<cr>
+x:redo<cr>
+xu:redo<cr>
+x:earlier 1<cr>
+xxx:earlier 2<cr>:later 1<cr>
+x:earlier 10s<cr>
+x:earlier 1f<cr>
+x:undojoin | normal x<cr>u
+x:undol<cr>
+:a<cr>
+:i<cr>
+:c<cr>
+:append<cr>foo<cr>.<cr>
+:insert<cr>foo<cr>.<cr>
+:change<cr>foo<cr>.<cr>
+:a|foo<cr>
+:if 1<cr>
+:if 1 | d | endif<cr>
+:if 0 | d | else | 2d | endif<cr>
+:while 1<cr>
+:for i in [1,2] | d | endfor<cr>
+:for i in range(2)<cr>
+:let i=0 | while i < 2 | d | let i += 1 | endwhile<cr>
+:function Foo()<cr>
+:function! Foo()<cr>return 1<cr>endfunction<cr>
+:fu<cr>
+:try | throw 'x' | catch | d | endtry<cr>
+:try<cr>
+:throw 'x'<cr>
+:echoerr 'x'<cr>
+:call nosuch()<cr>
+:call setline(1, 'X')<cr>
+:call append(0, ['X','Y'])<cr>
+:call deletebufline('%', 1)<cr>
+:call cursor(3,2)<cr>D
+:call search('four')<cr>D
+:call feedkeys('dd')<cr>
+:call feedkeys('dd', 'x')<cr>
+:call feedkeys('dd', 'n')<cr>
+:call feedkeys('dd', 't')<cr>
+:call feedkeys("ix\<lt>esc>")<cr>
+:call feedkeys(':d' . "\<lt>cr>")<cr>
+:call execute('d')<cr>
+:call execute('normal dd')<cr>
+:echo execute('ls')<cr>
+:exe 'd'<cr>
+:exe 'normal dd'<cr>
+:exe "normal! ix\<lt>esc>"<cr>
+:exe '2d' | exe 'd'<cr>
+:let @a='dd'<cr>@a
+:let @a='ix'<cr>@a
+:let @a=':d' . "\n"<cr>@a
+:let @a="ifoo\<lt>esc>"<cr>@a
+:let @a="ifoo\<lt>esc>"<cr>3@a
+:let @a="x"<cr>@a
+:let @a="x"<cr>3@a
+:let @a="xx"<cr>@a
+:let @a="D"<cr>@aj@@
+:let @q="jx"<cr>:normal @q<cr>
+:let @q="jx"<cr>:normal 3@q<cr>
+:let @q="x"<cr>:normal @q<cr>
+:let @q="x"<cr>:%normal @q<cr>
+:let @q="j@q"<cr>@q
+:let @q="xj@q"<cr>@q
+:@a<cr>
+:let @a="d\n"<cr>:@a<cr>
+:let @a="d\n"<cr>:2@a<cr>
+:let @a="d\nd\n"<cr>:@a<cr>
+:let @a="normal x"<cr>:@a<cr>
+:*a<cr>
+:@:<cr>
+:d<cr>:@:<cr>
+:@@<cr>
+:let @/='two'<cr>nD
+:let @"='X'<cr>p
+:let @+='X'<cr>"+p
+:let @*='X'<cr>"*p
+:let @_='X'<cr>
+:let @-='X'<cr>"-p
+:let @.='X'<cr>
+:let @%='X'<cr>
+:let @:='d'<cr>@:
+:let @=='6*7'<cr>"=p
+:let @==6*7<cr>
+:let @0='X'<cr>"0p
+:let @A='X'<cr>"ap
+:call setreg('a', "X\nY", 'b')<cr>"ap
+:call setreg('a', ['X','Y'])<cr>"ap
+:call setreg('a', 'X', 'l')<cr>"ap
+:reg<cr>
+:di a<cr>
+:let &ts=4<cr>
+:let &l:sw=2<cr>
+:let &g:tw=10<cr>
+:let $FOO='x'<cr>
+:let [a,b]=[1,2]<cr>
+:unlet nosuch<cr>
+:unlet! nosuch<cr>
+:lockvar x<cr>
+:const X = 1<cr>
+:echo 1 2 3<cr>
+:echon 'a' | echon 'b'<cr>
+:echohl Error | echo 'x' | echohl None<cr>
+:echom 'x'<cr>:mes<cr>
+:mes clear<cr>
+:redir => g:x | echo 'hi' | redir END | call setline(1, g:x)<cr>
+:redir @a | echo 'hi' | redir END<cr>"ap
+:redir > probe_redir.txt | echo 'hi' | redir END<cr>
+:silent echo 'x'<cr>
+:silent! nosuch<cr>
+:silent !ls<cr>
+:verbose set ts?<cr>
+:unsilent echo 'x'<cr>
+:noautocmd d<cr>
+:keepjumps normal G<cr>D
+:keepmarks d<cr>
+:keepalt d<cr>
+:keeppatterns s/a/X/<cr>nD
+:lockmarks d<cr>
+:sandbox d<cr>
+:sandbox call setline(1,'x')<cr>
+:sandbox !ls<cr>
+:topleft d<cr>
+:botright d<cr>
+:leftabove d<cr>
+:rightbelow d<cr>
+:aboveleft d<cr>
+:belowright d<cr>
+:hide d<cr>
+:noswapfile d<cr>
+:confirm d<cr>
+:browse d<cr>
+:vertical d<cr>
+:tab d<cr>
+:3verbose d<cr>
+:filter /a/ ls<cr>
+:filter /a/ registers<cr>
+:filter! /a/ marks<cr>
+:command! Hi d<cr>:Hi<cr>
+:command! -nargs=1 Hi <lt>args>d<cr>:Hi 2<cr>
+:command! -range Hi <lt>line1>,<lt>line2>d<cr>:2,3Hi<cr>
+:command! -bang Hi d<lt>bang><cr>:Hi!<cr>
+:command! -count=2 Hi d <lt>count><cr>:Hi<cr>
+:command! -nargs=* -complete=file Hi echo <lt>q-args><cr>:Hi a b<cr>
+:command! -bar Hi d<cr>:Hi | d<cr>
+:command! -register Hi d <lt>reg><cr>:Hi a<cr>"ap
+:command! -buffer Hi d<cr>:Hi<cr>
+:command Hi<cr>
+:command<cr>
+:delcommand Hi<cr>
+:comclear<cr>
+:Nosuch<cr>
+:command! hi d<cr>
+:nnoremap x dd<cr>x
+:nnoremap <lt>silent> x :d<lt>CR><cr>x
+:nnoremap <lt>expr> x 'dd'<cr>x
+:nnoremap <lt>expr> x nosuch()<cr>x
+:nnoremap <lt>expr> x input('?')<cr>x
+:nnoremap <lt>expr> x getchar()<cr>xy
+:nnoremap <lt>buffer> x dd<cr>x
+:nnoremap <lt>nowait> x dd<cr>x
+:nnoremap <lt>unique> x dd<cr>x
+:nnoremap <lt>script> x dd<cr>x
+:nnoremap <lt>special> x dd<cr>x
+:nnoremap <lt>Plug>(del) dd<cr>:nmap x <lt>Plug>(del)<cr>x
+:nnoremap <lt>Leader>x dd<cr>\x
+:let mapleader=','<cr>:nnoremap <lt>Leader>x dd<cr>,x
+:let maplocalleader=','<cr>:nnoremap <lt>LocalLeader>x dd<cr>,x
+:nnoremap <lt>SID>x dd<cr>
+:nmap x y<cr>:nmap y x<cr>x
+:nmap x xx<cr>x
+:nmap x :x<cr>x
+:nmap x jx<cr>x
+:nnoremap x :<lt>C-u>d<lt>CR><cr>3x
+:nnoremap x :d<lt>CR><cr>3x
+:nnoremap x <lt>Nop><cr>x
+:nnoremap x <lt>Esc><cr>x
+:nnoremap x <lt>Cmd>d<lt>CR><cr>x
+:nnoremap x :echo 1<lt>CR>:d<lt>CR><cr>x
+:nnoremap x ix<lt>Esc><cr>x
+:nnoremap x i<lt>C-r>=6*7<lt>CR><lt>Esc><cr>x
+:nnoremap x "=6*7<lt>CR>p<cr>x
+:nnoremap x /two<lt>CR>D<cr>x
+:nnoremap x :s/a/X/<lt>CR>u<cr>x
+:nnoremap x @a<cr>:let @a='dd'<cr>x
+:nnoremap x qa<cr>xddq
+:nnoremap <lt>C-x> dd<cr><c-x>
+:nnoremap <lt>F5> dd<cr><f5>
+:nnoremap <lt>S-F5> dd<cr><s-f5>
+:nnoremap <lt>M-x> dd<cr><m-x>
+:nnoremap <lt>Up> dd<cr><up>
+:nnoremap <lt>Space> dd<cr><space>
+:nnoremap <lt>Space> dd<cr> 
+:nnoremap <lt>CR> dd<cr><cr>
+:nnoremap <lt>Tab> dd<cr><tab>
+:nnoremap <lt>BS> dd<cr><bs>
+:nnoremap <lt>Bar> dd<cr>|
+:nnoremap <lt>lt> dd<cr><lt>
+:nnoremap é dd<cr>é
+:nnoremap gx dd<cr>gx
+:nnoremap g dd<cr>gx
+:nnoremap gg dd<cr>g{TO}
+:nnoremap gg dd<cr>gj
+:nnoremap dd x<cr>dd
+:nnoremap dd x<cr>dw
+:nnoremap dd x<cr>d{TO}w
+:onoremap x w<cr>dx
+:onoremap <lt>expr> x 'w'<cr>dx
+:onoremap x :<lt>C-u>normal! vj<lt>CR><cr>dx
+:xnoremap x d<cr>vx
+:vnoremap x d<cr>vx
+:snoremap x d<cr>v<c-g>x
+:xnoremap x :d<lt>CR><cr>vjx
+:xnoremap x :<lt>C-u>d<lt>CR><cr>vjx
+:xnoremap x <lt>Esc>dd<cr>vjx
+:inoremap x y<cr>ix<esc>
+:inoremap <lt>expr> x 'y'<cr>ix<esc>
+:inoremap x <lt>Esc>dd<cr>ix
+:inoremap x <lt>C-o>dd<cr>ixz<esc>
+:inoremap x <lt>C-o>:d<lt>CR><cr>ixz<esc>
+:inoremap x <lt>C-r>=6*7<lt>CR><cr>ix<esc>
+:inoremap x <lt>C-r>='y'<lt>CR><cr>ixxz<esc>
+:inoremap <lt>CR> <lt>CR>x<cr>i<cr><esc>
+:inoremap <lt>expr> <lt>CR> "\<lt>CR>x"<cr>i<cr><esc>
+:inoremap <lt>Tab> <lt>C-t><cr>i<tab><esc>
+:inoremap ( ()<lt>Left><cr>i(x<esc>
+:inoremap jk <lt>Esc><cr>ijkx
+:inoremap jk <lt>Esc><cr>ij{TO}kx<esc>
+:inoremap jk <lt>Esc><cr>ijx<esc>
+:inoremap jk <lt>Esc><cr>ij<esc>x
+:inoremap jk <lt>Esc><cr>ij<bs>kx<esc>
+:inoremap jj <lt>Esc><cr>:inoremap jk X<cr>ijjx
+:inoremap jk <lt>Esc><cr>:inoremap jkl X<cr>ijk{TO}x
+:inoremap jk <lt>Esc><cr>:inoremap jkl X<cr>ijklx<esc>
+:inoremap jk <lt>Esc><cr>:inoremap jkl X<cr>ijkmx<esc>
+:imap x xy<cr>ix<esc>
+:imap x yx<cr>ix<esc>
+:imap x y<cr>:imap y x<cr>ix<esc>
+:set tm=1 nottimeout<cr>:inoremap jk <lt>Esc><cr>ijkx
+:set notimeout<cr>:inoremap jk <lt>Esc><cr>ij{TO}x<esc>
+:iunmap x<cr>
+:nunmap x<cr>
+:mapclear<cr>
+:imapclear<cr>
+:map<cr>
+:map x<cr>
+:map! <cr>
+:abbreviate<cr>
+:iab<cr>
+:iab x y<cr>ix <esc>
+:iab x y<cr>:iunab x<cr>ix <esc>
+:iabclear<cr>
+:cab x d<cr>:x<cr>
+:noreab x y<cr>ix <esc>
+:ab <lt>buffer> x y<cr>ix <esc>
+:ab x@ y<cr>ix@ <esc>
+:ab #x y<cr>i#x <esc>
+:ab x,y z<cr>
+:lmap x y<cr>:set iminsert=1<cr>ix<esc>
+:tmap x y<cr>
+:tnoremap x y<cr>
+:menu File.Save :w<lt>CR><cr>
+:emenu File.Save<cr>
+:popup File<cr>
+:tlmenu x<cr>

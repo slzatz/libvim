@@ -139,6 +139,15 @@ A test program ends with `MU_REPORT(); MU_RETURN();`. `return minunit_status;`
 is the status of the *last* test only: ten programs ended that way, and the
 scripts printed PASS for them whatever the tests before the last had done.
 
+`src/apitest/compare/` is not part of the suite. It runs some 1,300 key
+sequences through libvim and through the system's vim and prints where they
+end differently, and runs another 1,300 commands, functions and keys to see
+that each returns; its README says how, and which differences to expect. Use
+it after a change to the state machine, Normal mode, Insert mode or the
+command line — the five fixes of 2026-11-12 were found with it and no test
+had noticed them. The build scripts look only at `apitest/*.c`, so nothing
+there is built or run by `--tests`.
+
 Keep the suite `-Werror`-clean on current toolchains. `apitest/fileformats.c`
 used `sprintf()`, which the macOS SDK marks deprecated, and that alone broke the
 full-suite build until it was changed to `snprintf()`; prefer the bounded form

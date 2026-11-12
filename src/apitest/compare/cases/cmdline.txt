@@ -1,0 +1,222 @@
+# The command line: editing keys, history, CTRL-R, CTRL-V, completion,
+# 'incsearch' keys, searches with offsets, and ":s" with its flags.
+#
+# For compare.sh. vim in silent Ex mode has no 'incsearch', and <Esc> on a
+# command line given with feedkeys() runs it: cases with CTRL-G, CTRL-T, CTRL-L
+# or <Esc> on a command line differ for that reason alone.
+
+:s/alpha/X<c-b>2<cr>
+:2s/b/X<home><del>3<cr>
+:s/a/X<left><left><bs>b<cr>
+:s/a/X<c-h><c-h>o/Y<cr>
+:s/a/X<c-w>alpha/Y<cr>
+:junk<c-u>s/a/X<cr>
+:s/a/X<c-e>Y<cr>
+:s/a/X<end>Y<cr>
+:s/a/X<s-left>Y<cr>
+:s/a/X<c-left>Y<cr>
+:s/a/X<s-right>Y<cr>
+:s/a/X<c-right>Y<cr>
+:s/a/X<c-c>
+:s/a/X<esc>
+:s/a/X<c-[>
+:<bs>x
+:s<bs><bs>x
+:s/a/X/<cr>:<up><cr>
+:s/a/X/<cr>:<c-p><cr>
+:s/a/X/<cr>j:<c-p><c-n><cr>
+:s/a/X/<cr>j:s<up><cr>
+:s/a/X/<cr>j:s<s-up><cr>
+:s/a/X/<cr>j:<pageup><cr>
+:s/a/X/<cr>:2<cr>:<up><up><down><cr>
+:s/a/X/<cr>j:s<down><cr>
+:s/a/<c-r><c-w>Z/<cr>
+:s/a/<c-r><c-a>Z/<cr>
+:s/a/<c-r><c-f>Z/<cr>
+:s/a/<c-r><c-p>Z/<cr>
+:s/a/<c-r><c-l>Z/<cr>
+:s/a/<c-r>/Z/<cr>
+:s/a/<c-r>:Z/<cr>
+yiw:s/a/<c-r>0/<cr>
+yiw:s/a/<c-r>"/<cr>
+yiw:s/a/<c-r><c-r>0/<cr>
+yiw:s/a/<c-r><c-o>0/<cr>
+yy:s/a/<c-r>0/<cr>
+yj:s/a/<c-r>0/<cr>
+:s/a/<c-r>=6*7<cr>/<cr>
+:s/a/<c-r>=<esc>Q/<cr>
+:s/a/<c-r>=<c-c>Q/<cr>
+:s/a/<c-r><esc>Q/<cr>
+:s/a/<c-r>=nosuch()<cr>Q/<cr>
+:s/a/<c-r>=<c-r>=1<cr>+1<cr>Q/<cr>
+:s/a/<c-v>065/<cr>
+:s/a/<c-v>u00e9/<cr>
+:s/a/<c-v><tab>/<cr>
+:s/a/<c-q>065/<cr>
+:s/a/<c-k>e:/<cr>
+:s/a/X/<c-j>
+:s/a/X/<c-m>
+:s/a/X/<kenter>
+:norm<tab> x<cr>
+:norm<c-d>al x<cr>
+:se<tab><tab><esc>
+:set ts=<tab><cr>
+:set ts<c-l>=3<cr>
+:e <c-d><esc>
+:<c-a><esc>
+:s<c-a><esc>
+:set t<c-a><c-u>s/a/X<cr>
+:e ../<tab><esc>
+:e ../<tab><tab><s-tab><esc>
+:e ../<c-n><c-p><esc>
+:b <tab><esc>
+:help <tab><esc>
+:echo g:<tab><esc>
+:call ex<tab><esc>
+:let &<tab><esc>
+:hi <tab><esc>
+:au <tab><esc>
+:set wildmenu<cr>:e ../<tab><left><right><up><down><esc>
+:set wildmode=list:longest<cr>:e ../<tab><esc>
+:set wildchar=<lt>C-E><cr>:nor<c-e> x<cr>
+:set wc=0<cr>:nor<tab> x<cr>
+:<c-f>
+:s/a/X<c-f>
+:s/a/X<c-f><cr>
+:s/a/X<c-f>:q<cr>
+:<c-\>e'X'<cr>
+:<c-\>e
+:<c-\><c-n>x
+:<c-\><c-g>x
+:s/a/X<c-\><c-n>x
+:<c-_>
+:<c-^>s/a/X<cr>
+:<c-]>
+:<c-o>
+:<c-g>
+:<c-t>
+:<c-y>
+:<c-z>
+:<c-x>
+:<c-s>
+:<insert>s/a/X<cr>
+:s/a/XY<left><insert>Z<cr>
+:<f1>
+:<s-tab>
+:<c-l>
+:cab xx s/a/X<cr>:xx<cr>
+:cab xx s/a/X<cr>:xx <c-u>xx<c-]><cr>
+:cnoremap <lt>C-A> <lt>Home><cr>:s/a/X<c-a>2<cr>
+:cnoremap jk <lt>C-c><cr>:s/a/Xjk
+:cnoremap jk <lt>C-c><cr>:s/a/Xj{TO}<cr>
+:cnoremap <lt>expr> x 'X'<cr>:s/a/x<cr>
+:cnoremap x <lt>C-\>e'2d'<lt>CR><cr>:x<cr>
+:set cedit=<lt>C-X><cr>:<c-x>
+:set nois<cr>/two<cr>D
+/two<c-g><cr>D
+/o<c-g><c-g><cr>D
+/o<c-g><c-t><cr>D
+/tw<c-l><cr>D
+/<c-r><c-w><cr>D
+/two<bs><bs><bs><bs>x
+/two<esc>D
+/two<c-c>D
+/two<c-u>one<cr>D
+/t\<bar>o<cr>D
+/two/;/three<cr>D
+/two/+1<cr>D
+/two/b+1<cr>D
+/two/s-1<cr>D
+/two/e-1<cr>D
+//;//<cr>D
+/<cr>D
+/two<cr>/<up><cr>D
+/two<cr>?<up><cr>D
+/two<cr>//e<cr>D
+?two?e<cr>D
+?four<cr>D
+/nosuch<cr>D
+/\(<cr>D
+/[<cr>D
+/two\<cr>D
+/\v(two|four)<cr>nD
+/\ctWO<cr>D
+/two\zs<cr>D
+/^$<cr>D
+/\n<cr>D
+/two\nchar<cr>D
+/\%3l<cr>D
+/\%>2l\%<lt>4lthree<cr>D
+/two<cr>ggnD
+/two<cr>GND
+/two<cr>ggcgnX<esc>
+/o<cr>ggcgnX<esc>..
+/two<cr>ggdgn
+/two<cr>gggnd
+/two<cr>ggvgnd
+/t<cr>:noh<cr>nD
+/t<cr>:set nows<cr>GnD
+/t<cr>:set ws<cr>GnD
+:set ic<cr>/TWO<cr>D
+:set ic scs<cr>/TWO<cr>D
+:set magic<cr>/a.p<cr>D
+:set nomagic<cr>/a.p<cr>D
+*D
+jw*D
+jw#D
+g*D
+wg#D
+3*D
+/two<cr>:s//X/<cr>
+/two<cr>:%s//X/<cr>
+/two<cr>:s/alpha/~~/<cr>
+:s/a/X/<cr>:s/o/~Y/<cr>
+:s/a/X/<cr>j:&&<cr>
+:s/a/X/g<cr>j:&<cr>
+:s/a/X/g<cr>j:&&<cr>
+:s/a/X/g<cr>jg&
+:s/a/X/<cr>j:~<cr>
+:s/a/X/<cr>/o<cr>:~<cr>
+:%s/a/X/g<cr>u:%&&<cr>
+:s/a/\=line('.')/<cr>
+:s/a/\r/<cr>
+:s/a/\n/<cr>
+:s/a/<c-v><cr>/<cr>
+:s/ /\t/<cr>
+:s/\(a\)l/\1\1/<cr>
+:s/\v(a)l/\u\1\U&\e!/<cr>
+:s#a#X#<cr>
+:s/a/X/n<cr>
+:s/a/X/&<cr>
+:s/a/X/i<cr>
+:s/A/X/I<cr>
+:s/a/X/e<cr>
+:s/zz/X/e<cr>
+:s/a/X/p<cr>
+:s/a/X/#<cr>
+:s/a/X/l<cr>
+:s/a/X/r<cr>
+:s/a/X/ 3<cr>
+:s/a/X/g 2<cr>
+:s/a/X/c<cr>
+:s/a/X/gc<cr>y
+:%s/a/X/gc<cr>a
+:%s/a/X/gc<cr>q
+:s/a/X/c<cr><esc>
+:s<cr>
+:s/a<cr>
+:s/a/<cr>
+:s//<cr>
+:&<cr>
+:&&<cr>
+:~<cr>
+:sno/a.p/X/<cr>
+:sm/a.p/X/<cr>
+:%s/$/!/<cr>
+:%s/^/> /<cr>
+:%s/\n//<cr>
+:%s/\n/ /<cr>
+:%s/ /\r/g<cr>
+:%s/a*/X/g<cr>
+:%s/\zs/-/g<cr>
+:%s/x*//gn<cr>

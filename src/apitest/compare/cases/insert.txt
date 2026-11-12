@@ -1,0 +1,223 @@
+# Insert and Replace mode: editing keys, CTRL-V, CTRL-R, CTRL-O, CTRL-G,
+# abbreviations, 'textwidth' and the indent options -- and ":normal" with keys
+# that leave a command unfinished.
+#
+# For compare.sh. Completion (CTRL-N, CTRL-P, CTRL-X) and digraphs (CTRL-K) are
+# not compiled into libvim and differ throughout.
+
+ifoo<esc>
+ifoo<c-w>bar<esc>
+ifoo bar<c-u>x<esc>
+ifoo<c-h>x<esc>
+ifoo<bs><bs>x<esc>
+A<cr>new<esc>
+A<c-j>new<esc>
+A<c-m>new<esc>
+i<c-t>x<esc>
+>>i<c-d>x<esc>
+>>A0<c-d>x<esc>
+>>A^<c-d>x<esc>
+i<tab>x<esc>
+i<c-i>x<esc>
+i<c-v>u00e9<esc>
+i<c-v>065<esc>
+i<c-v>x41<esc>
+i<c-v><tab><esc>
+i<c-v><esc>x<esc>
+i<c-q>065<esc>
+i<c-k>e:<esc>
+i<c-k>a*<esc>
+i<c-o>dwX<esc>
+i<c-o>3lX<esc>
+i<c-o>:s/a/b/<cr>X<esc>
+A<c-o>0X<esc>
+A<c-o>~X<esc>
+i<c-o>ofoo<esc>
+i<c-o>vld<esc>
+i<c-o>u<esc>
+i<c-o><c-o>x<esc>
+i<c-o><esc>x<esc>
+ifoo<esc>o<c-a><esc>
+ifoo<esc>o<c-@>
+ifoo<esc>o<c-r>.<esc>
+i<c-r>.<esc>
+yiwA <c-r>0<esc>
+yiwA <c-r>"<esc>
+yiwA <c-r><c-r>0<esc>
+yiwA <c-r><c-o>0<esc>
+yiwA <c-r><c-p>0<esc>
+yyA<c-r>0x<esc>
+A<c-r>=6*7<cr><esc>
+A<c-r>=<esc>x<esc>
+A<c-r><esc>x<esc>
+A<c-r>%<esc>
+A<c-r>/<esc>
+A<c-r>:<esc>
+A<c-r>-<esc>
+A<c-r>_<esc>
+A<c-r><c-w><esc>
+A<c-r>=[1,2]<cr><esc>
+A<c-r>=input('x')<cr><esc>
+A<c-r>=nosuch()<cr><esc>
+jA<c-y><c-y><c-y><esc>
+A<c-e><c-e><esc>
+A <c-n><esc>
+A a<c-n><esc>
+A a<c-p><esc>
+A a<c-n><c-n><c-y><esc>
+A a<c-x><c-n><esc>
+A a<c-x><c-l><esc>
+A a<c-x><c-f><esc>
+A /u<c-x><c-f><esc>
+A a<c-x><c-k><esc>
+A a<c-x><c-o><esc>
+A a<c-x><c-u><esc>
+A a<c-x><c-v><esc>
+A a<c-x>s<esc>
+A a<c-x><c-]><esc>
+A a<c-x><c-e><esc>
+A a<c-x><c-y><esc>
+A a<c-x><c-d><esc>
+A a<c-x><c-i><esc>
+A a<c-x><c-t><esc>
+A a<c-x><c-z>b<esc>
+A<c-g>jX<esc>
+A<c-g>kX<esc>
+A<c-g>uX<esc>u
+A<c-g>UX<esc>
+A<c-g><esc>
+ifoo<left>X<esc>
+ifoo<right>X<esc>
+ifoo<up>X<esc>
+ifoo<down>X<esc>
+ifoo<home>X<esc>
+ifoo<end>X<esc>
+ifoo<s-left>X<esc>
+ifoo<c-left>X<esc>
+ifoo<c-right>X<esc>
+ifoo<pagedown>X<esc>
+ifoo<pageup>X<esc>
+ifoo<del>X<esc>
+ifoo<insert>X<esc>
+ifoo<insert><insert>X<esc>
+ifoo<f1>X<esc>
+ifoo<c-c>
+ifoo<c-[>
+ifoo<c-\><c-n>
+ifoo<c-\><c-o>x<esc>
+ifoo<c-l>x<esc>
+ifoo<c-z>x<esc>
+ifoo<c-b>x<esc>
+ifoo<c-f>x<esc>
+ifoo<c-s>x<esc>
+ifoo<c-_>x<esc>
+ifoo<c-^>x<esc>
+ifoo<c-]>x<esc>
+:iab teh the<cr>iteh <esc>
+:iab teh the<cr>iteh<c-]><esc>
+:iab teh the<cr>iteh<c-v> <esc>
+:iab teh the<cr>ixteh <esc>
+:iab <lt>expr> dd strftime('%Y')[0:0]<cr>idd <esc>
+:set tw=10<cr>Atwo three four five six<esc>
+:set tw=10 fo+=a<cr>Atwo three four five six<esc>
+:set ai<cr>>>Afoo<cr>bar<esc>
+:set ai<cr>>>ofoo<esc>
+:set ai<cr>>>o<esc>
+:set ai<cr>>>o<cr>x<esc>
+:set si<cr>A {<cr>x<esc>
+:set cin<cr>A {<cr>x<cr>}<esc>
+:set et sw=2<cr>i<tab>x<esc>
+:set sts=4 et<cr>i<tab><bs>x<esc>
+:set sw=4 sta et<cr>i<tab>x<esc>
+:set bs=<cr>A<bs>x<esc>
+:set bs=2<cr>jI<bs>x<esc>
+:set ve=all<cr>$5li X<esc>
+:set ve=all<cr>$5lix<bs><bs><bs>X<esc>
+:set paste<cr>ifoo<cr>bar<esc>
+:set sm<cr>A()<esc>
+:set ri<cr>ifoo<esc>
+:set im<cr>foo<esc>
+:set im<cr>foo<c-l>
+:set im<cr>foo<c-o>x
+:set lz<cr>ifoo<esc>
+:set tw=5 fo=tcq<cr>Aaaa bbb ccc<esc>gggqG
+:set ww+=[,]<cr>A<right>X<esc>
+:set kmp=dvorak<cr>ia<esc>
+:set rl<cr>ifoo<esc>
+:set arabic<cr>ifoo<esc>
+:set dg<cr>Aa<bs>:<esc>
+ia<c-v>
+ia<c-v><c-v>b<esc>
+ia<c-v>1<esc>
+ia<c-v>u<esc>
+ia<c-k>
+ia<c-k>a
+ia<c-k><esc>b<esc>
+ia<c-r>
+ia<c-r><c-r>
+ia<c-o>
+ia<c-o>d
+ia<c-o>"
+ia<c-o>"a
+ia<c-o>"ayy<esc>
+ia<c-o>q
+ia<c-o>qab<c-o>q<esc>@a
+ia<c-x>
+ia<c-x>a<esc>
+ia<c-g>
+3ia<c-o>lb<esc>
+3ia<c-c>
+3ofoo<c-c>
+5ia<left><esc>
+ia<esc>.
+ia<cr>b<esc>j.
+ofoo<esc>3.u
+Abar<esc>j.j.
+cwfoo<esc>w.
+cwfoo<c-r>"<esc>
+cw<c-r>-<esc>
+s<c-r>-<esc>
+ifoo<c-o>:normal Ax<cr>y<esc>
+ifoo<c-o>:normal iz<cr>y<esc>
+ifoo<c-o>:startinsert!<cr>y<esc>
+ifoo<c-o>:stopinsert<cr>y<esc>
+:startinsert<cr>y<esc>
+:startinsert!<cr>y<esc>
+:startreplace<cr>y<esc>
+:startgreplace<cr>y<esc>
+:normal ifoo<cr>
+:normal ifoo<c-v><esc>x<cr>
+:normal d<cr>w
+:normal "<cr>
+:normal q<cr>
+:normal r<cr>
+:normal i<c-v><c-r><cr>x
+:normal i<c-v><c-v><cr>x
+:normal /two<cr>
+:normal /two<c-v><cr>D<cr>
+:normal :<cr>
+:normal :s/a/b<cr>
+:normal @<cr>
+:normal z<cr>
+:normal m<cr>
+:normal g<cr>
+:normal f<cr>
+:normal c<cr>x
+:normal ci<cr>x
+:normal v<cr>d
+:normal vj<cr>
+:exe "normal vj\<lt>esc>"<cr>
+:exe "normal i\<lt>c-o>"<cr>x
+:exe "normal i\<lt>c-r>"<cr>x
+:exe "normal i\<lt>c-r>="<cr>x
+:exe "normal \"="<cr>x
+:exe "normal q:"<cr>x
+:exe "normal :s/a/b"<cr>x
+:exe "normal R"<cr>x
+:exe "normal gR"<cr>x
+:exe "normal 3"<cr>x
+:exe "normal 3d"<cr>x
+:exe "normal Q"<cr>x
+:exe "normal <c-v><c-w>"<cr>x
+:exe "normal <c-v><c-v>"<cr>x
+:exe "normal zu"<cr>x

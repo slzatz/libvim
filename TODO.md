@@ -139,8 +139,8 @@ still in the tree (`op_format()`, `format_lines()` in `ops.c`), and
 Tried: `else op_format(oap, FALSE);` for `OP_FORMAT` and
 `else op_format(oap, TRUE);` for `OP_FORMAT2`. `gqap`, `gqG`, `gwG`, undo and
 `.` then work. Not tried: `=` falling back to `op_reindent()` and `!` to
-`op_colon()` as in vim. `!!cmd` has a second problem with the shell allowed:
-`E484: Can't open file` on the temporary file.
+`op_colon()` as in vim. (`!!` and `!{motion}` open no command line now; the
+ex command they would fill in, `:{range}!cmd`, works.)
 
 It changes what an embedder without the callback gets — something where
 there was nothing. Decide whether that needs to be opt-in.
@@ -247,6 +247,8 @@ GitHub Actions workflow that runs `./build-linux.sh --tests` and
   `test_no_scroll_after_setting_left`. Run them, or find out why upstream
   did not. (`test_ctrl_f` there, and `insert_count` in `autoindent.c`, are
   commented out.)
+- `vimSearchGetHighlights()` with a NULL buffer crashes once there is a
+  search pattern; `vimSpellGetErrors()` checks for it.
 - `libvim.c`: `vimSearchGetHighlights()` tests `count == 0` twice in a row;
   the comment that describes `spellWindowForBuffer()` sits above
   `vimSetSpellSuggestCallback()`; `vimInputCore()` does not free what
@@ -258,24 +260,20 @@ GitHub Actions workflow that runs `./build-linux.sh --tests` and
 
 ## How these were found
 
-Reading, and three kinds of running. The programs were written in a
-session's scratch directory and are not in the repository; they are small
-enough to write again, and worth keeping if this is done a second time.
+Reading, and the programs in [src/apitest/compare](src/apitest/compare)
+(its README says how to run them):
 
-- **Against vim.** A program that links `libvim.a`, starts from a buffer of
-  five known lines, types one key sequence (`<name>` through `vimKey()`, the
-  rest a byte at a time through `vimInput()`) in a forked child with an
-  alarm, and prints the cursor and the lines. The same sequence is given to
-  the system's vim (`vim -Nu NONE -i NONE -n -es`, `feedkeys(keys, 'tx')`),
-  which writes the same line. Differences are bugs on one side or the
-  other. About 1,900 sequences: Normal, Insert and Command-line keys, ex
-  commands, mappings, registers. Known noise: vim 9.1 against a library
-  that is 8.1; `<Esc>` on a command line *runs* it under `feedkeys()`; a
-  `feedkeys(..., 'x')` that ends in Insert mode is ended; a case that makes
-  vim wait for a key (`getchar()`, `input()`) has to be killed from
-  outside; and vim's undo includes the lines that set the buffer up.
-- **For crashes and hangs alone**, the same program without vim: about 750
-  ex commands and option settings through `vimExecute()`, about 330 vimscript
-  functions through `vimEval()`, and 66 key names through `vimKey()`.
-- **The C API with arguments it does not expect**: line ranges that are
-  negative, reversed or past the end; NULL; a buffer that is not current.
+- **Against vim** (`compare.sh`). libvim and the system's vim are each given
+  the same key sequence from the same five-line buffer, and the cursor and
+  text they end with are compared. About 1,300 sequences: Normal, Insert and
+  Command-line keys, ex commands, mappings, registers. Many differences are
+  the comparison's own and the README lists them.
+- **For crashes and hangs alone** (`sweep.sh`). About 750 ex commands and
+  option settings, 330 vimscript functions and 200 keys, each in a process of
+  its own, to see that it comes back.
+- **The C API with arguments it does not expect** (`api_edges.exe`): line
+  ranges that are negative, reversed or past the end; NULL; a buffer that is
+  not current.
+
+When an entry here is fixed, the cases that showed it are a first check, and
+the numbers in that README want bringing up to date.

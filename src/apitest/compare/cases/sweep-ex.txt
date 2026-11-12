@@ -1,0 +1,762 @@
+# Ex commands and option settings, given to vimExecute() one at a time, to see
+# that each returns. Files and windows, the shell, quickfix, tags, help,
+# sessions, spelling, autocommands, syntax, folds, and about four hundred
+# ":set" lines with values an option does not expect.
+#
+# For sweep.sh, not compare.sh: most of these have nothing to compare. They are
+# run outside restricted mode, so ":!ls" and its relatives do run a program.
+# ":sh" and ":shell" are left out: they start a shell and wait for it.
+# ":cq" is known not to come back -- it exits the process (TODO.md).
+
+{EX}source! @TMP@/keys.txt
+{EX}source @TMP@/s.vim
+{EX}source nosuchfile
+{EX}runtime nosuch.vim
+{EX}runtime! spell/*.nosuch
+{EX}runtime `echo x`
+{EX}r @TMP@/r.txt
+{EX}0r @TMP@/r.txt
+{EX}r !echo hi
+{EX}r nosuchfile
+{EX}e @TMP@/r.txt
+{EX}e! 
+{EX}enew
+{EX}enew!
+{EX}e #
+{EX}b 1
+{EX}bn
+{EX}bp
+{EX}bd
+{EX}bw
+{EX}bd!
+{EX}ball
+{EX}sball
+{EX}buffers
+{EX}files
+{EX}ls!
+{EX}bfirst
+{EX}blast
+{EX}bm
+{EX}bunload
+{EX}badd foo
+{EX}balt foo
+{EX}file
+{EX}file newname
+{EX}0file
+{EX}f
+{EX}w
+{EX}w!
+{EX}w @TMP@/out.txt
+{EX}w >> @TMP@/out.txt
+{EX}w !cat
+{EX}wa
+{EX}wq
+{EX}x
+{EX}xa
+{EX}wn
+{EX}wN
+{EX}up
+{EX}sav @TMP@/sav.txt
+{EX}q
+{EX}q!
+{EX}qa
+{EX}qa!
+{EX}cq
+{EX}wqa
+{EX}clo
+{EX}only
+{EX}hide
+{EX}sp
+{EX}vs
+{EX}new
+{EX}vnew
+{EX}tabnew
+{EX}tabe @TMP@/r.txt
+{EX}tabn
+{EX}tabp
+{EX}tabc
+{EX}tabo
+{EX}tabs
+{EX}tabm 0
+{EX}tabdo d
+{EX}windo d
+{EX}bufdo d
+{EX}argdo d
+{EX}args
+{EX}args a b c
+{EX}argadd x
+{EX}argd *
+{EX}next
+{EX}prev
+{EX}first
+{EX}last
+{EX}rew
+{EX}all
+{EX}sall
+{EX}sn
+{EX}sbn
+{EX}sb 1
+{EX}sview x
+{EX}view x
+{EX}split +d x
+{EX}pedit x
+{EX}pclose
+{EX}ptag x
+{EX}psearch alpha
+{EX}wincmd w
+{EX}wincmd s
+{EX}winsize 80 24
+{EX}winpos
+{EX}resize 10
+{EX}vertical resize 10
+{EX}cd /tmp
+{EX}lcd /tmp
+{EX}tcd /tmp
+{EX}chdir
+{EX}pwd
+{EX}cd -
+{EX}cd nosuchdir
+{EX}mkdir x
+{EX}!ls
+{EX}!
+{EX}make
+{EX}grep foo *
+{EX}lgrep foo *
+{EX}vimgrep /alpha/ %
+{EX}vimgrep /alpha/ *.c
+{EX}lvimgrep /alpha/ %
+{EX}grepadd foo
+{EX}cfile x
+{EX}cexpr 'a:1:x'
+{EX}cgetexpr 'a:1:x'
+{EX}caddexpr 'a:1:x'
+{EX}cbuffer
+{EX}copen
+{EX}cwindow
+{EX}cclose
+{EX}clist
+{EX}cc
+{EX}cn
+{EX}cp
+{EX}cnf
+{EX}cfirst
+{EX}cdo d
+{EX}cfdo d
+{EX}chistory
+{EX}colder
+{EX}cnewer
+{EX}lopen
+{EX}ll
+{EX}lnext
+{EX}ldo d
+{EX}helpgrep foo
+{EX}help
+{EX}help nosuch
+{EX}helptags .
+{EX}helpclose
+{EX}exusage
+{EX}viusage
+{EX}tag foo
+{EX}tags
+{EX}tselect foo
+{EX}tjump foo
+{EX}stag foo
+{EX}tnext
+{EX}pop
+{EX}ltag foo
+{EX}cstag foo
+{EX}cscope show
+{EX}scriptnames
+{EX}scriptencoding utf-8
+{EX}scriptversion 2
+{EX}finish
+{EX}options
+{EX}browse e
+{EX}browse oldfiles
+{EX}oldfiles
+{EX}recover
+{EX}preserve
+{EX}swapname
+{EX}wviminfo
+{EX}rviminfo
+{EX}wundo @TMP@/undo
+{EX}rundo @TMP@/undo
+{EX}mksession @TMP@/sess.vim
+{EX}mkview @TMP@/view.vim
+{EX}loadview
+{EX}mkvimrc @TMP@/vimrc
+{EX}mkexrc @TMP@/exrc
+{EX}mkspell @TMP@/sp @TMP@/r.txt
+{EX}spelldump
+{EX}spellinfo
+{EX}spellgood foo
+{EX}spellwrong foo
+{EX}spellundo foo
+{EX}spellrepall
+{EX}set spell | spelldump
+{EX}set spell spelllang=en | spellinfo
+{EX}set spell spelllang=xx
+{EX}set spelllang=en_us,de spell
+{EX}set spell spellfile=@TMP@/en.utf-8.add | spellgood zzzq
+{EX}set spell | normal z=
+{EX}set spell | normal 1z=
+{EX}set spell | normal ]s
+{EX}set spell | normal zg
+{EX}set spell | normal zG
+{EX}set spell | normal zW
+{EX}set spell | echo spellbadword('helo wrld')
+{EX}set spell | echo spellsuggest('helo', 3)
+{EX}set spell | echo soundfold('hello')
+{EX}hardcopy
+{EX}hardcopy > @TMP@/hc.ps
+{EX}digraphs
+{EX}digraphs e: 235
+{EX}ascii
+{EX}intro
+{EX}version
+{EX}language
+{EX}language messages C
+{EX}messages
+{EX}display
+{EX}marks
+{EX}marks aB
+{EX}jumps
+{EX}clearjumps
+{EX}changes
+{EX}delmarks!
+{EX}delmarks a-z
+{EX}k a
+{EX}history
+{EX}history all
+{EX}history / -2,
+{EX}autocmd
+{EX}au BufEnter * echo 1
+{EX}au! 
+{EX}augroup x | au! | augroup END
+{EX}augroup! x
+{EX}doautocmd BufEnter
+{EX}doautoall BufEnter
+{EX}au TextChanged * let g:tc = 1
+{EX}au InsertEnter * normal! 0
+{EX}au InsertLeave * normal! $
+{EX}au CursorMoved * normal! 0
+{EX}au BufWritePre * d
+{EX}au TextYankPost * echo v:event
+{EX}au CmdlineEnter * echo 'x'
+{EX}au CmdlineChanged * echo 'x'
+{EX}au InsertCharPre * let v:char = 'x'
+{EX}au CursorHold * d
+{EX}au VimLeave * d
+{EX}au BufReadCmd * d
+{EX}au OptionSet * echo v:option_new
+{EX}au User Foo d | doautocmd User Foo
+{EX}au FileType * echo 'ft' | set ft=c
+{EX}set ft=markdown
+{EX}setf c
+{EX}filetype on
+{EX}filetype plugin indent on
+{EX}filetype detect
+{EX}syntax on
+{EX}syntax enable
+{EX}syntax off
+{EX}syntax list
+{EX}syn keyword Foo bar
+{EX}syn match Foo /x/
+{EX}syn region Foo start=/a/ end=/b/
+{EX}syn clear
+{EX}syn sync fromstart
+{EX}syntime on
+{EX}highlight
+{EX}hi Normal
+{EX}hi Foo guifg=red
+{EX}hi link Foo Bar
+{EX}hi clear
+{EX}colorscheme
+{EX}colorscheme nosuch
+{EX}colo default
+{EX}match Error /a/
+{EX}2match Error /a/
+{EX}match none
+{EX}call matchadd('Error', 'a')
+{EX}call clearmatches()
+{EX}sign define x text=>>
+{EX}sign list
+{EX}sign place 1 line=1 name=x
+{EX}sign unplace *
+{EX}sign jump 1
+{EX}fold
+{EX}1,2fold
+{EX}foldopen
+{EX}foldclose
+{EX}folddoopen d
+{EX}folddoclosed d
+{EX}set fdm=indent
+{EX}set fdm=syntax
+{EX}set fdm=expr fde=1
+{EX}set fdm=marker
+{EX}set fdm=diff
+{EX}diffthis
+{EX}diffoff
+{EX}diffupdate
+{EX}diffsplit x
+{EX}diffpatch x
+{EX}diffget
+{EX}diffput
+{EX}ownsyntax c
+{EX}ownsyntax
+{EX}terminal
+{EX}terminal ls
+{EX}term ++close ls
+{EX}lua print(1)
+{EX}python print(1)
+{EX}py3 print(1)
+{EX}pyx print(1)
+{EX}perl print 1
+{EX}ruby puts 1
+{EX}tcl puts 1
+{EX}mzscheme 1
+{EX}luado return 1
+{EX}pydo return 1
+{EX}nbkey x
+{EX}nbstart
+{EX}gui
+{EX}gvim
+{EX}simalt f
+{EX}mouse
+{EX}promptfind x
+{EX}promptrepl x
+{EX}drop x
+{EX}tearoff x
+{EX}behave mswin
+{EX}behave xterm
+{EX}redraw
+{EX}redraw!
+{EX}redrawstatus
+{EX}redrawtabline
+{EX}mode
+{EX}mode 80x24
+{EX}sleep 1m
+{EX}sleep 100m
+{EX}gs
+{EX}stop
+{EX}suspend
+{EX}ex
+{EX}visual
+{EX}vi x
+{EX}open
+{EX}global /a/ visual
+{EX}debug echo 1
+{EX}debuggreedy
+{EX}breakadd func Foo
+{EX}breaklist
+{EX}breakdel *
+{EX}profile start @TMP@/prof
+{EX}profile func *
+{EX}profdel func *
+{EX}syntime report
+{EX}packadd nosuch
+{EX}packloadall
+{EX}helpfind
+{EX}compiler gcc
+{EX}checktime
+{EX}checkpath
+{EX}checkpath!
+{EX}ilist alpha
+{EX}isearch alpha
+{EX}ijump alpha
+{EX}isplit alpha
+{EX}dlist alpha
+{EX}dsearch alpha
+{EX}djump alpha
+{EX}dsplit alpha
+{EX}include x
+{EX}z
+{EX}z#
+{EX}z+3
+{EX}z=
+{EX}z^
+{EX}z.
+{EX}1,3z
+{EX}print
+{EX}1,3P
+{EX}list
+{EX}number
+{EX}nu
+{EX}#
+{EX}=
+{EX}.=
+{EX}1,3l
+{EX}nohlsearch
+{EX}set hls | nohl
+{EX}X
+{EX}cabc
+{EX}abclear
+{EX}unabbreviate x
+{EX}una x
+{EX}iuna x
+{EX}smapclear
+{EX}omapclear
+{EX}xmapclear
+{EX}lmapclear
+{EX}tmapclear
+{EX}loadkeymap
+{EX}set keymap=nosuch
+{EX}set keymap=dvorak
+{EX}set langmap=ab
+{EX}set langmap=a
+{EX}set rightleft
+{EX}set lisp
+{EX}set binary
+{EX}set eol
+{EX}set bomb
+{EX}set fenc=latin1
+{EX}set enc=latin1
+{EX}set enc=utf-16
+{EX}set tenc=latin1
+{EX}set ff=dos
+{EX}set ff=nosuch
+{EX}set bh=wipe
+{EX}set bt=nofile
+{EX}set bt=help
+{EX}set bt=quickfix
+{EX}set bt=terminal
+{EX}set bt=prompt
+{EX}set bt=popup
+{EX}set bt=acwrite
+{EX}set nomodifiable | d
+{EX}set readonly | d
+{EX}set ro | w
+{EX}set noma | normal x
+{EX}set noma | normal ix
+{EX}set swf
+{EX}set swf | set dir=@TMP@
+{EX}set uc=1
+{EX}set bk
+{EX}set wb
+{EX}set pm=.orig
+{EX}set udf
+{EX}set udf udir=@TMP@
+{EX}set ul=-1 | d
+{EX}set ul=0 | d
+{EX}set mls=0
+{EX}set viminfo=
+{EX}set vi='10 | wv
+{EX}set vif=@TMP@/vi | wv
+{EX}set sh=/nosuch | !ls
+{EX}set sp=x
+{EX}set srr=x
+{EX}set sxq=x
+{EX}set cb=unnamed | normal yy
+{EX}set cb=unnamedplus | normal yyp
+{EX}set cb=autoselect
+{EX}set mouse=a
+{EX}set ttym=xterm
+{EX}set term=xterm
+{EX}set term=nosuch
+{EX}set t_Co=256
+{EX}set t_ku=x
+{EX}set columns=20
+{EX}set columns=1
+{EX}set columns=100000
+{EX}set lines=5
+{EX}set lines=1
+{EX}set lines=100000
+{EX}set ch=5
+{EX}set ls=2
+{EX}set stal=2
+{EX}set wmh=0
+{EX}set wh=1
+{EX}set wiw=1
+{EX}set so=999
+{EX}set siso=999
+{EX}set ss=0
+{EX}set sj=-50
+{EX}set wrap
+{EX}set nowrap | normal $
+{EX}set lbr
+{EX}set bri
+{EX}set sbr=>
+{EX}set list
+{EX}set lcs=tab:>-
+{EX}set nu rnu
+{EX}set nuw=10
+{EX}set cul cuc
+{EX}set cc=80
+{EX}set cole=2
+{EX}set ve=all | normal $10l
+{EX}set ve=onemore
+{EX}set ve=block
+{EX}set sel=exclusive | normal vld
+{EX}set sel=old | normal v$d
+{EX}set slm=key
+{EX}set km=startsel,stopsel
+{EX}set ww=h,l | normal h
+{EX}set nosol | normal G
+{EX}set ek
+{EX}set noek
+{EX}set ttimeout ttm=1
+{EX}set ut=1
+{EX}set ei=all
+{EX}set debug=msg,throw
+{EX}set verbose=15 | echo 1
+{EX}set verbose=20 vfile=@TMP@/verb | echo 1
+{EX}set report=0 | d
+{EX}set more | reg
+{EX}set nomore | reg
+{EX}set cmdheight=1 | echo "a\nb\nc"
+{EX}set shm=a
+{EX}set shm+=c shm-=S
+{EX}set sc
+{EX}set smd
+{EX}set ru
+{EX}set ruf=%l
+{EX}set stl=%f
+{EX}set stl=%{nosuch()}
+{EX}set tal=%f
+{EX}set titlestring=x title
+{EX}set icon
+{EX}set gfn=x
+{EX}set gcr=a:block
+{EX}set lsp=1
+{EX}set bg=dark
+{EX}set bg=light
+{EX}set hl=8:x
+{EX}set fcs=vert:x
+{EX}set mat=1 sm | normal i)
+{EX}set mps+=<:> | normal %
+{EX}set mps=x
+{EX}set isk=@ | normal dw
+{EX}set isk=1-255 | normal dw
+{EX}set isk=x-
+{EX}set isf=nosuch
+{EX}set isi=@
+{EX}set isp=@
+{EX}set cpo+=$ | normal cwx
+{EX}set cpo=aAbBcCdDeEfFgHiIjJkKlLmMnoOpPqrRsStuvwWxXyZ$!%*-+<>;
+{EX}set cp
+{EX}set cp | normal ix
+{EX}set cp nocp
+{EX}set nocp cp nocp
+{EX}set all
+{EX}set all&
+{EX}set termcap
+{EX}set
+{EX}set!
+{EX}set ts
+{EX}set ts&
+{EX}set ts&vim
+{EX}set ts&vi
+{EX}set ts<
+{EX}set ts^=2
+{EX}set ts+=2
+{EX}set ts-=20
+{EX}set ts=0
+{EX}set ts=-1
+{EX}set ts=99999
+{EX}set ts=x
+{EX}set sw=-1
+{EX}set sw=0 | normal >>
+{EX}set sts=-1 sw=4 et | normal i\t
+{EX}set vts=4,8
+{EX}set vsts=4,8
+{EX}set tw=-1
+{EX}set tw=1 | normal Afoo bar
+{EX}set wm=10 | normal Afoo bar
+{EX}set fo=a | normal Afoo bar
+{EX}set fo=tcqan1jroMBm2vblw | normal Afoo bar
+{EX}set fo=x
+{EX}set flp=x
+{EX}set com=x
+{EX}set com=:# | normal o
+{EX}set cms=x
+{EX}set inde=nosuch() | normal o
+{EX}set inde=1 | normal ox
+{EX}set indk=0x | normal ix
+{EX}set cino=x | normal ==
+{EX}set cink=x
+{EX}set cinw=x
+{EX}set fex=nosuch() | normal gqq
+{EX}set fex=1 | normal gqq
+{EX}set fp=cat | normal gqq
+{EX}set ep=cat | normal ==
+{EX}set kp=echo | normal K
+{EX}set kp=:echo | normal K
+{EX}set kp= | normal K
+{EX}set ofu=nosuch
+{EX}set cfu=nosuch
+{EX}set opfunc=nosuch | normal g@@
+{EX}set opfunc=Foo | normal g@l
+{EX}set qftf=nosuch
+{EX}set tfu=nosuch | tag x
+{EX}set tc=match
+{EX}set tags=x | tag y
+{EX}set path=** | find nosuch
+{EX}set path=.,, | find r.txt
+{EX}set sua=.txt | normal gf
+{EX}set inex=nosuch() | normal gf
+{EX}set inc=x | checkpath
+{EX}set def=x | dlist x
+{EX}set dict=@TMP@/r.txt
+{EX}set tsr=x
+{EX}set cpt=.,w,b,u,t,i
+{EX}set cot=menu
+{EX}set ph=10
+{EX}set wildignore=*.o | e @TMP@/*
+{EX}set wig=* | e x
+{EX}set su=.o
+{EX}set wop=pum
+{EX}set wcm=9
+{EX}set hi=0 | history
+{EX}set hi=100000
+{EX}set cwh=1
+{EX}set cedit=x
+{EX}set pt=x
+{EX}set pt=<F2>
+{EX}set bex=x
+{EX}set bkc=yes
+{EX}set bdir=x
+{EX}set bsk=x
+{EX}set dy=lastline
+{EX}set dip=x
+{EX}set dex=x
+{EX}set pex=x
+{EX}set efm=x
+{EX}set gp=x
+{EX}set mp=x
+{EX}set mef=x
+{EX}set sbo=x
+{EX}set scb crb
+{EX}set scr=0
+{EX}set scr=-1
+{EX}set scr=1000
+{EX}set window=0
+{EX}set wfh wfw
+{EX}set pvh=0
+{EX}set pvw
+{EX}set hh=0
+{EX}set hf=x | help
+{EX}set hlg=x
+{EX}set lpl
+{EX}set rtp=
+{EX}set rtp=x | runtime y
+{EX}set pp=x
+{EX}set ssop=x
+{EX}set vop=x
+{EX}set sps=x
+{EX}set sps=best,0
+{EX}set sps=file:x
+{EX}set sps=expr:nosuch()
+{EX}set sps=expr:[] spell | normal 1z=
+{EX}set spc=x
+{EX}set spc=[ spell
+{EX}set spf=x
+{EX}set spf=x.add
+{EX}set spf=x.utf-8.add,y.utf-8.add spell | normal 2zg
+{EX}set spl=x
+{EX}set spl=en,nosuch spell
+{EX}set spl=cjk spell
+{EX}set spo=camel
+{EX}set spo=nosuch
+{EX}set spo=noallcaps,nomixedcase spell
+{EX}set msm=1,1,1
+{EX}set mmp=1 | /a\+b
+{EX}set re=1 | /a\+
+{EX}set re=2 | /a\+
+{EX}set re=3
+{EX}set mmd=1 | nmap x y | normal x
+{EX}set mfd=1 | call Foo()
+{EX}set mmt=1
+{EX}set rdt=1
+{EX}set mco=6
+{EX}set ambw=double
+{EX}set emo
+{EX}set dg | normal ia\<BS>b
+{EX}set arab
+{EX}set hk
+{EX}set hkp
+{EX}set fk
+{EX}set akm
+{EX}set tbidi
+{EX}set rlc=search
+{EX}set imi=2 ims=2
+{EX}set imd
+{EX}set imaf=x
+{EX}set imsf=x
+{EX}set ccv
+{EX}set cm=blowfish2
+{EX}set key=x
+{EX}set ml | e @TMP@/r.txt
+{EX}set secure exrc
+{EX}set odev
+{EX}set bl nobl
+{EX}set swb=useopen
+{EX}set spr sb
+{EX}set ea
+{EX}set ead=ver
+{EX}set tpm=1 | tabnew | tabnew
+{EX}set gtl=x
+{EX}set go=x
+{EX}set tb=x
+{EX}set tbs=x
+{EX}set ttyfast
+{EX}set ttyscroll=1
+{EX}set wd=1
+{EX}set wak=yes
+{EX}set bioskey conskey
+{EX}set ar | checktime
+{EX}set aw | next
+{EX}set awa
+{EX}set acd | e @TMP@/r.txt
+{EX}set sn
+{EX}set ssl
+{EX}set tildeop | normal ~w
+{EX}set top | normal ~~
+{EX}set nojs | normal J
+{EX}set nf=alpha | normal \<C-a>
+{EX}set nf= | normal \<C-a>
+{EX}set gd | s/a/x/
+{EX}set ed | s/a/x/g
+{EX}set tgst=10
+{EX}set ta
+{EX}set tx
+{EX}set lz | normal ix
+{EX}set tf
+{EX}set vb t_vb=
+{EX}set eb
+{EX}set bo=all
+{EX}set confirm | q
+{EX}set confirm | e x
+{EX}set write nowrite | w
+{EX}set prompt
+{EX}set remap noremap | nmap x y | normal x
+{EX}set sft
+{EX}set ws
+{EX}set tl=1
+{EX}set tr
+{EX}set notgst
+{EX}set tsl=1
+{EX}set winptydll=x
+{EX}set twk=x
+{EX}set tws=1x1
+{EX}set twsl=1
+{EX}set balloonexpr=x beval
+{EX}set bevalterm
+{EX}set mzq=1 pyxversion=3
+{EX}set luadll=x
+{EX}set renderoptions=x
+{EX}set guipty
+{EX}set macatsui
+{EX}set shellslash shelltemp
+{EX}set viewdir=x
+{EX}set vdir=@TMP@ | mkview
+{EX}set nosuchoption
+{EX}set nosuch=1
+{EX}set ts:4
+{EX}set invlist
+{EX}set list!
+{EX}set list&
+{EX}set ts=4 sw=4 | set ts? sw?
+{EX}setlocal ts=2 | setglobal ts?
+{EX}setglobal
+{EX}setlocal
+{EX}setlocal all
