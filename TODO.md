@@ -172,7 +172,40 @@ which is what `sm_execute_normal()` does for `:normal`.
 `:source! file` (keys from a file) does nothing either: that is the
 `TODO: Wire-up to sm_execute_normal` in `openscript()` (`getchar.c`).
 
-### 11. Smaller differences from vim
+### 11. `g0`, `g^`, `gm` and `g$` do not ask the embedder
+
+Added 2026-11-14, not from the review. `gj`, `gk`, `H`, `M` and `L` ask the
+embedder where its screen lines are (`vimSetCursorMoveScreenPositionCallback()`,
+`vimSetCursorMoveScreenLineCallback()`), because libvim's window matches
+nothing the embedder draws. The motions to a place *in* a screen line were
+left as vim has them in `nv_g_cmd()` (`normal.c`): `g0` (`g<Home>`), `g^`,
+`gm` and `g$` (`g<End>`) are worked out from libvim's own window -- its
+`w_width`, 80 unless `vimWindowSetWidth()` is called, less `win_col_off()`
+for `'number'`, `'relativenumber'` and the fold and sign columns.
+
+- `'wrap'` is off by default in libvim (upstream's default in `option.c`;
+  vim's is on). They then go to the edges of libvim's horizontally scrolled
+  view. On a line of 200 columns, at width 80: `150|g0` goes to column 109,
+  `150|g$` to 188. On a line shorter than the width they are `0`, `^` and
+  `$`, and `gm` goes to column 40 (or the end of the line) whatever width
+  the embedder draws. A count does nothing, as in vim with `'nowrap'`.
+  vimango sets neither the width nor `'wrap'`, so this is what it gets.
+- With `'wrap'` on they wrap the line at any character, at that width: from
+  column 100, `g0` goes to 80, `gm` to 120, `g$` to 159. An embedder that
+  wraps at word boundaries, as vimango does, has screen lines that start and
+  end elsewhere. `g$` with a count above 1 does ask the embedder, through
+  `nv_screengo()`, as `gj` does.
+
+Found by reading the code, and confirmed with a program against the
+library. Proposed: a third callback, opt-in like the other two -- "the
+first and last byte of the screen line holding this position" -- from which
+`g0`, `g^` (first non-blank from there), `gm` (the middle, by virtual
+column) and `g$` follow; with no callback set, vim's arithmetic as now.
+vimango would answer from `wrapRow()`, as `ScreenPosition()` does
+(`internal/editor/screen_motion.go`). Tests belong in
+`apitest/motion_screen.c`, with the ones for `gj`, `gk`, `H`, `M` and `L`.
+
+### 12. Smaller differences from vim
 
 - `vimExecute("startinsert")` starts Insert mode only after the next Normal
   mode command. Typed, or in a mapping, it works since `37762a4b1`.
@@ -208,7 +241,7 @@ which is what `sm_execute_normal()` does for `:normal`.
 
 ## Tests and tooling
 
-### 12. The tests do not instrument libvim
+### 13. The tests do not instrument libvim
 
 The test rule compiles the *test file* with `-fsanitize=address
 -fsanitize=undefined` and links the ordinary `libvim.a`, so a bad read
@@ -232,14 +265,14 @@ scripts that builds into a second objects directory and runs the suite
 against it. UndefinedBehaviorSanitizer on the library was not tried; vim's
 older code will have a good deal to say.
 
-### 13. The fork has no CI
+### 14. The fork has no CI
 
 `azure-pipelines.yml` is upstream's and triggers on `master`, which this
 repository no longer has. `.github/` holds issue templates only. Proposed: a
 GitHub Actions workflow that runs `./build-linux.sh --tests` and
 `./build-macos.sh --tests` on a push to `main`.
 
-### 14. Loose ends
+### 15. Loose ends
 
 - `apitest/scroll.c` defines five tests that the suite never runs:
   `test_small_screen_scroll`, `test_h_m_l`,

@@ -142,6 +142,6 @@ mode; `:append` and `:function` typed; `:redir`.
 ## With AddressSanitizer
 
 A bad read inside libvim shows only if `libvim.a` itself is instrumented;
-TODO.md (entry 12) has the `make` line. Build that library somewhere else — a
+TODO.md (entry 13) has the `make` line. Build that library somewhere else — a
 copy of `src/` — and link these programs against it by hand: `build.sh`
 links the one in `src/`.
