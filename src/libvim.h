@@ -158,6 +158,21 @@ void vimSetCursorMoveScreenPositionCallback(
     CursorMoveScreenPositionCallback cursorMoveScreenPositionCallback);
 
 /***
+ * vimSetCursorMoveScreenColumnCallback
+ *
+ * Callback when the cursor will be moved within its screen line (g0, g^, gm,
+ * g$). It is given a position, and the motion says which character of the
+ * screen line holding that position is wanted: its first, its last, or the
+ * one half the width of the window along it. The answer is a byte offset in
+ * the same line; one that is not in the line is brought into it.
+ *
+ * With no callback these motions are worked out from libvim's own window
+ * (vimWindowSetWidth(), 'wrap'), which is how they always were.
+ */
+void vimSetCursorMoveScreenColumnCallback(
+    CursorMoveScreenColumnCallback cursorMoveScreenColumnCallback);
+
+/***
  * File I/O
  ***/
 void vimSetFileWriteFailureCallback(FileWriteFailureCallback fileWriteFailureCallback);

@@ -2821,6 +2821,29 @@ static int nv_screengo(oparg_T *oap, int dir, long dist)
 }
 
 /*
+ * "g0", "gm" and "g$" when the embedder says where its screen lines are
+ * (cursorMoveScreenColumnCallback is set): put the cursor on the character
+ * of its screen line that "motion" names. The embedder answers with a byte
+ * offset in the cursor's line; one outside the line, or inside a multi-byte
+ * character, is brought to the nearest character.
+ */
+static void nv_screencol(screenColumnMotion_T motion)
+{
+  colnr_T destCol = curwin->w_cursor.col;
+
+  cursorMoveScreenColumnCallback(
+      motion,
+      curwin->w_cursor.lnum,
+      curwin->w_cursor.col,
+      &destCol);
+  curwin->w_cursor.col = destCol;
+  curwin->w_cursor.coladd = 0;
+  check_cursor_col();
+  if (has_mbyte)
+    mb_adjust_cursor();
+}
+
+/*
  * Handle CTRL-E and CTRL-Y commands: scroll a line up or down.
  * cap->arg must be TRUE for CTRL-E.
  */
@@ -5670,26 +5693,35 @@ static void nv_g_cmd(cmdarg_T *cap)
   case K_KHOME:
     oap->motion_type = MCHAR;
     oap->inclusive = FALSE;
-    if (curwin->w_p_wrap && curwin->w_width != 0)
+    if (cursorMoveScreenColumnCallback != NULL)
     {
-      int width1 = curwin->w_width - curwin_col_off();
-      int width2 = width1 + curwin_col_off2();
-
-      validate_virtcol();
-      i = 0;
-      if (curwin->w_virtcol >= (colnr_T)width1 && width2 > 0)
-        i = (curwin->w_virtcol - width1) / width2 * width2 + width1;
+      /* libvim: the screen lines are the embedder's, and it is asked. */
+      nv_screencol(cap->nchar == 'm' ? MOTION_SCREEN_MIDDLE
+                                     : MOTION_SCREEN_START);
     }
     else
-      i = curwin->w_leftcol;
-    /* Go to the middle of the screen line.  When 'number' or
-     * 'relativenumber' is on and lines are wrapping the middle can be more
-     * to the left. */
-    if (cap->nchar == 'm')
-      i += (curwin->w_width - curwin_col_off() +
-            ((curwin->w_p_wrap && i > 0) ? curwin_col_off2() : 0)) /
-           2;
-    coladvance((colnr_T)i);
+    {
+      if (curwin->w_p_wrap && curwin->w_width != 0)
+      {
+        int width1 = curwin->w_width - curwin_col_off();
+        int width2 = width1 + curwin_col_off2();
+
+        validate_virtcol();
+        i = 0;
+        if (curwin->w_virtcol >= (colnr_T)width1 && width2 > 0)
+          i = (curwin->w_virtcol - width1) / width2 * width2 + width1;
+      }
+      else
+        i = curwin->w_leftcol;
+      /* Go to the middle of the screen line.  When 'number' or
+       * 'relativenumber' is on and lines are wrapping the middle can be more
+       * to the left. */
+      if (cap->nchar == 'm')
+        i += (curwin->w_width - curwin_col_off() +
+              ((curwin->w_p_wrap && i > 0) ? curwin_col_off2() : 0)) /
+             2;
+      coladvance((colnr_T)i);
+    }
     if (flag)
     {
       do
@@ -5733,7 +5765,25 @@ static void nv_g_cmd(cmdarg_T *cap)
 
     oap->motion_type = MCHAR;
     oap->inclusive = TRUE;
-    if (curwin->w_p_wrap && curwin->w_width != 0)
+    if (cursorMoveScreenColumnCallback != NULL)
+    {
+      /* libvim: the screen lines are the embedder's, and it is asked. With
+       * a count the end of a screen line further down is wanted, which is
+       * "gj" after "$". */
+      curwin->w_curswant = MAXCOL; /* so we stay at the end */
+      if (cap->count1 == 1)
+      {
+        nv_screencol(MOTION_SCREEN_END);
+
+        /* Make sure we stick in this column. */
+        validate_virtcol();
+        curwin->w_curswant = curwin->w_virtcol;
+        curwin->w_set_curswant = FALSE;
+      }
+      else if (nv_screengo(oap, FORWARD, cap->count1 - 1) == FAIL)
+        clearopbeep(oap);
+    }
+    else if (curwin->w_p_wrap && curwin->w_width != 0)
     {
       curwin->w_curswant = MAXCOL; /* so we stay at the end */
       if (cap->count1 == 1)

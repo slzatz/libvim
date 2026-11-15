@@ -224,6 +224,20 @@ typedef void (*CursorMoveScreenPositionCallback)(
     colnr_T curswant,
     linenr_T *destLnum, colnr_T *destCol);
 
+/*
+ * g0, gm and g$: which character of the screen line holding a position
+ * CursorMoveScreenColumnCallback is asked for. g^ asks for the start and
+ * goes on to the first non-blank.
+ */
+typedef enum
+{
+  MOTION_SCREEN_START,  /* g0, g^: its first character */
+  MOTION_SCREEN_MIDDLE, /* gm: the one half the width of the window along it, or its last */
+  MOTION_SCREEN_END,    /* g$: its last character */
+} screenColumnMotion_T;
+typedef void (*CursorMoveScreenColumnCallback)(
+    screenColumnMotion_T motion, linenr_T lnum, colnr_T col, colnr_T *destCol);
+
 typedef struct
 {
   sds contents;

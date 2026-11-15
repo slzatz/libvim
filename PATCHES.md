@@ -572,6 +572,64 @@ command is run with `:@a`, not by putting it on the command line.
 `test_insert_literal_cr_in_a_substitute`) and `apitest/ctrl_r.c`
 (`test_cmdline_register_of_a_line_is_not_run`).
 
+## `g0`, `g^`, `gm` and `g$` ask the embedder: `vimSetCursorMoveScreenColumnCallback()`
+
+Nov 2026.
+
+**Upstream behavior.** `gj`, `gk`, `H`, `M` and `L` ask the embedder where
+its screen lines are (`vimSetCursorMoveScreenPositionCallback()`,
+`vimSetCursorMoveScreenLineCallback()`), because libvim's window matches
+nothing the embedder draws. The motions to a place *in* a screen line did
+not: `g0` (`g<Home>`), `g^`, `gm` and `g$` (`g<End>`) were worked out in
+`nv_g_cmd()` from libvim's own window -- 80 columns unless
+`vimWindowSetWidth()` is called, and `'nowrap'`, which is libvim's default
+and not vim's. On a line of 200 columns `150|g0` went to column 109 and
+`150|g$` to 188, the edges of a horizontally scrolled view nobody was shown;
+on a line shorter than the window they were `0`, `^` and `$`. With `'wrap'`
+set the line was wrapped at that width at any character, which is not where
+an embedder that wraps at word boundaries has its screen lines.
+
+**This fork.** A third callback, for an embedder that wants it:
+
+```c
+typedef enum
+{
+  MOTION_SCREEN_START,  /* g0, g^: its first character */
+  MOTION_SCREEN_MIDDLE, /* gm: the one half the width of the window along it, or its last */
+  MOTION_SCREEN_END,    /* g$: its last character */
+} screenColumnMotion_T;
+typedef void (*CursorMoveScreenColumnCallback)(
+    screenColumnMotion_T motion, linenr_T lnum, colnr_T col, colnr_T *destCol);
+
+void vimSetCursorMoveScreenColumnCallback(CursorMoveScreenColumnCallback f);
+```
+
+It is given a position -- a line and a byte offset in it -- and answers with
+the byte offset, in the same line, of a character of the screen line holding
+that position. `*destCol` starts as `col`, so a callback that does nothing
+leaves the cursor where it is.
+
+- `g0` goes to the start; `g^` goes there and on to the first non-blank, as
+  in vim.
+- `gm` is the embedder's to work out, not the middle of the answers to the
+  other two: vim's `gm` is half the width of the window from the start of the
+  screen line, and a screen line can be shorter than the window.
+- `g$` goes to the end, and the column wanted afterwards is that character's,
+  not "the end of the line": `j` keeps to it. With a count above 1 it is the
+  end of a screen line further down, which is the *position* callback's, asked
+  for `count - 1` lines down with `curswant` at `MAXCOL` -- `gj` after `$`.
+  With no position callback that fails, as `gj` does.
+- An answer outside the line is brought to its first or last character, and
+  one inside a multi-byte character to that character's first byte.
+- As motions they are what they are in vim: `g$` inclusive, the rest
+  exclusive, so `dg$` deletes to the end of the screen line and takes its
+  last character.
+
+**If you relied on the old behavior.** Nothing changes unless the callback is
+set: with none, the four are worked out from libvim's window as before.
+
+**Tests.** `apitest/motion_screen.c`.
+
 ## An embedder can stop vim writing files, and restricted mode starts no shell
 
 Nov 2026.
