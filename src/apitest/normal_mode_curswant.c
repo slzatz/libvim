@@ -182,6 +182,26 @@ MU_TEST(test_curswant_end_again)
   mu_check(vimCursorGetColumn() == 3);
 }
 
+// A buffer just entered has a column wanted that is still to be worked out
+// (enter_buffer() sets w_set_curswant). That is settled before the first
+// command runs, not after it: afterwards it took the "end" that "$" had just
+// asked for and made it the column of this line's end.
+MU_TEST(test_curswant_dollar_first_in_buffer)
+{
+  vimExecute("e!");
+  mu_check(vimCursorGetLine() == 1);
+
+  vimInput("$");
+  mu_check(vimCursorGetColumn() == 2);
+  mu_check(vimCursorGetColumnWant() == MAXCOL);
+
+  vimInput("j");
+  vimInput("j");
+  vimInput("j");
+  mu_check(vimCursorGetLine() == 4);
+  mu_check(vimCursorGetColumn() == 3);
+}
+
 MU_TEST(test_setting_curswant_explicitly)
 {
   mu_check(vimCursorGetLine() == 1);
@@ -210,6 +230,7 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_curswant_reset_back_where_it_was);
   MU_RUN_TEST(test_curswant_reset_on_last_line);
   MU_RUN_TEST(test_curswant_end_again);
+  MU_RUN_TEST(test_curswant_dollar_first_in_buffer);
   MU_RUN_TEST(test_setting_curswant_explicitly);
 }
 

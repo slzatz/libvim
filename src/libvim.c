@@ -263,6 +263,14 @@ colnr_T vimCursorGetColumnWant(void)
 
 void vimInputCore(int should_replace_termcodes, char_u *input)
 {
+  // The column wanted may be waiting to be worked out from where the cursor
+  // is: a buffer was entered, or something outside a command moved the
+  // cursor. vim's main_loop() settles that before each command, and so it
+  // is settled here before the key. Left until after it (below), "$" as the
+  // first key in a buffer lost its "end of every line" to the column of the
+  // end of this one.
+  update_curswant();
+
   if (should_replace_termcodes)
   {
     char_u *ptr = NULL;

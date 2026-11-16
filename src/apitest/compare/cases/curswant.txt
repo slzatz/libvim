@@ -8,6 +8,10 @@
 # the cursor yet, "$0j" was right.
 
 $0j
+$j
+$jj
+$jk
+$kj
 0$j
 0$jk
 0$0j

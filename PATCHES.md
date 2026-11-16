@@ -747,8 +747,34 @@ nothing else.
 
 **Tests.** `apitest/normal_mode_curswant.c`: the five `test_curswant_reset_*`
 tests fail without the change, and `test_curswant_end_again` is `$` still
-wanting the end. `apitest/compare/cases/curswant.txt` is 56 sequences to
-compare with vim: 21 differed, none do.
+wanting the end. `apitest/compare/cases/curswant.txt` is sequences to compare
+with vim: of the 56 written for this, 21 differed, and none do.
+
+## What a buffer just entered wants is settled before the first key
+
+Nov 2026.
+
+**Upstream behavior.** `$` as the first key in a buffer went to the end of
+the line and wanted the end of that line only: `j` then went to that column
+of the next line, and `gj` kept the column where it should have gone to the
+end of each screen line. Any `$` after another command was right.
+
+A buffer that has just been entered has a column wanted that is still to be
+worked out from where the cursor is (`enter_buffer()` sets
+`w_set_curswant`). vim works it out at the top of `main_loop()`, before the
+next command. `vimInputCore()` did it only after the command it had run, so
+the first command's own answer was replaced: `$` set the column wanted to
+"the end", and the pending flag then made it the column the cursor was in.
+
+**This fork.** `vimInputCore()` calls `update_curswant()` before the key as
+well as after it. The call after stays: `vimCursorGetColumnWant()` is right
+as soon as the key returns.
+
+**If you relied on the old behavior.** Nothing to do.
+
+**Tests.** `apitest/normal_mode_curswant.c`,
+`test_curswant_dollar_first_in_buffer`, and four more sequences in
+`apitest/compare/cases/curswant.txt`.
 
 ## Other changes
 
