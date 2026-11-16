@@ -336,6 +336,13 @@ void vimUndoSync(int force)
   u_sync(force);
 }
 
+void vimUndoClear(buf_T *buf)
+{
+  /* What vim does when it reloads a file (buf_reload() in fileio.c). */
+  u_blockfree(buf);
+  u_clearall(buf);
+}
+
 int vimVisualGetType(void) { return VIsual_mode; }
 
 void vimVisualGetRange(pos_T *startPos, pos_T *endPos)

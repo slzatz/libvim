@@ -56,10 +56,13 @@ It appends and deletes lines and nothing else. vim's own `setbufline()` and
   `appended_lines_mark()`.
 - **Nothing is saved for undo, and the undo that exists goes stale**: `x`,
   then `vimBufferSetLines()`, then `u` puts the old line back over the new
-  text; `.` after it gave `E440: undo line missing`. This one needs a
-  decision first. Saving for undo would let `u`, typed after a note is
-  loaded, empty the buffer, which an embedder loading text does not want. So:
-  clear the undo history, or make undo opt-in, and say which in `libvim.h`.
+  text; `.` after it gave `E440: undo line missing`. The embedder has to
+  say which it wants, and since 2026-11-16 can say either:
+  `vimUndoSaveRegion()` first (upstream's, tested in `apitest/undo_redo.c`)
+  or `vimUndoClear()` afterwards (PATCHES.md). What is left is the call made
+  with neither. It cannot clear the history itself: the lines saved by
+  `vimUndoSaveRegion()` are in it. It could tell that nothing was saved for
+  the lines it is about to change, and clear then; not tried.
 - **Arguments are not checked.** A negative `start` corrupts the buffer (a
   line pointer that is not a string). `end < start` inserts and deletes
   nothing. `start` past the end does nothing but still raises the changed

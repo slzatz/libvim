@@ -72,6 +72,12 @@ size_t vimBufferGetLineCount(buf_T *buf);
  * vimBufferSetLines(buf, 0, 2, ["abc"], 2); // Set line 1 to "abc", make line 2 empty
  * vimBufferSetLines(buf, 2, 2, ["abc"], 1); // Splice "abc" after the second line, pushing the existing lines from 3 on down
  *
+ * Nothing is saved for undo, and what the buffer already has saved is left
+ * as it was, describing lines that are now gone or have moved: `u` after the
+ * call puts a line of the old text over the new. So do one of two things.
+ * Call vimUndoSaveRegion() first, and the change is one that `u` undoes. Or,
+ * when the text is new - a file loaded, or loaded again - call
+ * vimUndoClear() afterwards, and the history starts from the new text.
  */
 void vimBufferSetLines(buf_T *buf, linenr_T start, linenr_T end, char_u **lines, int count);
 
@@ -400,6 +406,20 @@ int vimUndoSaveRegion(linenr_T start_lnum, linenr_T end_lnum);
  * undo entry, and start a new one.
  */
 void vimUndoSync(int force);
+
+/*
+ * vimUndoClear(buf)
+ *
+ * Forget the buffer's undo history: `u`, CTRL-R, `U`, `:earlier` and the rest
+ * find nothing to go back or forward to, and changes made from here on are
+ * undone as usual. For after vimBufferSetLines() has put new text in a
+ * buffer, which leaves the history describing the old; vim does the same
+ * when it reloads a file. The text and the modified flag are not touched.
+ *
+ * Called during an insert, what the rest of that insert types is not saved
+ * for undo.
+ */
+void vimUndoClear(buf_T *buf);
 
 /***
  * Visual Mode

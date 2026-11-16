@@ -681,6 +681,39 @@ Tests: `apitest/file_writes.c` — sixteen ways to write a file, each shown to
 write one with writes on and none with them off; and a `'shell'` that leaves a
 mark, to show that restricted mode no longer runs it for `:diffpatch`.
 
+## An embedder can forget a buffer's undo history: `vimUndoClear()`
+
+Nov 2026.
+
+**Upstream behavior.** `vimBufferSetLines()` saves nothing for undo and
+leaves what the buffer has saved as it was. Upstream's way to keep the two in
+step is `vimUndoSaveRegion()` before the call, which makes the new lines a
+change `u` undoes. An embedder that wants no such thing — it has loaded a
+file's text into a buffer, or loaded it again because the file changed — had
+nothing to call, and a history that described the old lines: `x` on line 1,
+new text set over the whole buffer, then `u`, put the old line 1 back over the
+new one and left the rest. With a line spliced in above an edit, `u` did not
+even leave the number of lines as it was.
+
+**This fork.** `vimUndoClear(buf)` (`libvim.h`) forgets the buffer's history,
+as vim does when it reloads a file (`buf_reload()`): `u`, CTRL-R, `U`,
+`:earlier` and `:undolist` find nothing, and changes made afterwards are
+undone as usual, back to the text that was set and no further. The text, the
+changed tick and the modified flag are not touched. Called during an insert,
+what the rest of that insert types is not saved for undo.
+
+`vimBufferSetLines()` is as it was, and so is `vimUndoSaveRegion()` before it.
+The comment on `vimBufferSetLines()` in `libvim.h` now says that one of the
+two is wanted.
+
+**If you relied on the old behavior.** Nothing changes unless you call
+`vimUndoClear()`.
+
+**Tests.** `apitest/undo_redo.c`: `test_set_lines_alone_leaves_a_stale_history`
+is the fault, the `test_clear_undo_*` tests and the two beside them what the
+call does about it, and upstream's `test_undo_save` and `test_undo_sync` the
+other way of using `vimBufferSetLines()`, unchanged.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

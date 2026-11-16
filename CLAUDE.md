@@ -418,6 +418,16 @@ checker such as hunspell.
   the normal-mode commands. It sets `'spellfile'` to a `tempname()` so `zg`
   never writes into `runtime/spell/`.
 
+### Undo and `vimBufferSetLines()` (2026-11)
+
+`vimBufferSetLines()` saves nothing for undo, and the embedder says what
+becomes of the history: `vimUndoSaveRegion()` before the call makes it a
+change `u` undoes (upstream's, `test_undo_save`), `vimUndoClear()` after it
+forgets the history, for text that is new. **Do not clear the history inside
+`vimBufferSetLines()`**: that was tried first, and it throws away the lines
+`vimUndoSaveRegion()` has just saved. `vimUndoClear()` is `u_blockfree()` and
+`u_clearall()`, what `buf_reload()` does. Tests: `apitest/undo_redo.c`.
+
 ### File writes can be turned off (2026-11)
 
 `vimSetFileWritesEnabled(FALSE)` makes vim write no file by any route; see
