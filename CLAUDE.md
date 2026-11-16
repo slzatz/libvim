@@ -9,7 +9,7 @@ libvim is a headless vim library extracted from vim source code, originally desi
 **This repository is a permanent fork** of onivim/libvim, which is unmaintained; nothing goes back upstream, and changes are ordinary commits on `main`. Working rules:
 
 - **[PATCHES.md](PATCHES.md) is the list of everything that diverges from upstream**, written for someone embedding the library. A change in behavior or API gets a section there (upstream behavior, this fork, what to do if you relied on the old behavior, tests), and a test in `src/apitest/`. The sections below are the notes for someone *changing* this tree.
-- **The consumer is [vimango](https://github.com/slzatz/vimango)**, which may not be the only one: a change must leave an embedder that asks for nothing new unaffected. New behavior is opt-in (`vimSetMappingsEnabled`, `vimSetFileWritesEnabled`, an option value).
+- **The consumer is [vimango](https://github.com/slzatz/vimango), and this tree is for it.** Nothing goes back upstream, so as far as a change here is concerned upstream does not exist (Steve, 2026-11-16): nothing is kept because onivim/libvim had it, or for an embedder there might be. A change is judged by whether it makes libvim a better vim, or libvim and vimango together a better editor, and an upstream function, test or behavior may be changed or removed for that. Until then the rule was that an embedder asking for nothing new must see no change, with new behavior opt-in (`vimSetMappingsEnabled`, `vimSetFileWritesEnabled`); those switches stay because vimango uses them, not because the rule does. What does not loosen: the suite passes, and a test that no longer says what is wanted is rewritten or deleted in the same commit, on purpose, never left failing or skipped; PATCHES.md says what changed; and a change to something vimango calls is made on both sides (next item).
 - vimango builds its `libvim.a` from this repository's *pushed* `main` (its `scripts/build-libvim.sh` pulls, and refuses a checkout with uncommitted changes). It does not compile against these headers: it declares the part of the API it uses in its own `vim/libvim_api.h`, and a test there (`TestHeaderMatchesLibvim`, run by that script after every build) compares those declarations, and the layout of `pos_T`, `spellError_T` and `searchHighlight_T`, with the headers here. So a change to a function vimango calls, or to one of those types, fails that test until vimango's copy is updated; `src/ex_cmds.h` is copied across by the script.
 - **An object file needs its header dependencies listed** in the generated `### Dependencies:` section of `src/Makefile`. Without them a header change does not rebuild it, and the stale object links: `spellfile.o`, compiled against an old `structs.h`, crashed on `zg`. If a header change seems not to take effect, build with `--clean`.
 
@@ -423,9 +423,12 @@ checker such as hunspell.
 `vimBufferSetLines()` saves nothing for undo, and the embedder says what
 becomes of the history: `vimUndoSaveRegion()` before the call makes it a
 change `u` undoes (upstream's, `test_undo_save`), `vimUndoClear()` after it
-forgets the history, for text that is new. **Do not clear the history inside
-`vimBufferSetLines()`**: that was tried first, and it throws away the lines
-`vimUndoSaveRegion()` has just saved. `vimUndoClear()` is `u_blockfree()` and
+forgets the history, for text that is new. Clearing inside
+`vimBufferSetLines()` was tried first: it throws away the lines
+`vimUndoSaveRegion()` has just saved, so the two cannot both stay as they
+are. vimango calls `vimUndoClear()` after every set and never
+`vimUndoSaveRegion()`; if that function goes, the clear can move into
+`vimBufferSetLines()`. `vimUndoClear()` is `u_blockfree()` and
 `u_clearall()`, what `buf_reload()` does. Tests: `apitest/undo_redo.c`.
 
 ### File writes can be turned off (2026-11)
