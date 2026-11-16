@@ -87,6 +87,7 @@ For `compare.sh`, with the number that differed on 2026-11-12 (macOS, vim
 | `cases/cmdline.txt` | 215 | 21 |
 | `cases/ex.txt` | 364 | 33 |
 | `cases/ctrl-o-forced-motion.txt` | 155 | 2 |
+| `cases/curswant.txt` (added 2026-11-16, with the fix it is for) | 56 | 0 |
 
 For `sweep.sh`:
 

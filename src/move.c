@@ -140,7 +140,14 @@ void update_topline_redraw(void)
  */
 void update_topline(void)
 {
-  // libvim: No-op
+  // libvim: there is no topline to update, the embedder scrolls. What is
+  // left of vim's function is the check its callers count on: curs_columns()
+  // marks w_virtcol valid, and that means "valid for w_valid_cursor", which
+  // only this brings up to date. Without it "$0j" went to the end of the
+  // next line: after "$" the column of the line's end was valid for a cursor
+  // still recorded in column 0, so when "0" went back there
+  // update_curswant() took it for the column wanted.
+  check_cursor_moved(curwin);
 }
 
 void update_curswant(void)

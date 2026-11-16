@@ -1,0 +1,65 @@
+# The column j and k want, after a motion along the line.
+#
+# For compare.sh. "0$0j" went to the end of the next line until
+# update_topline() checked whether the cursor had moved (PATCHES.md, "The
+# column wanted after $"). It took a cursor that some motion had already
+# placed and that came back to the same column, which is why most of these
+# begin with 0 or gg: in a buffer just opened, where nothing had looked at
+# the cursor yet, "$0j" was right.
+
+$0j
+0$j
+0$jk
+0$0j
+0$^j
+0$_j
+0$|j
+0$ggj
+gg$ggj
+gg$0j
+gg$^j
+0$hj
+0$0lj
+0$0$j
+0$0jk
+0$0jj
+0$bj
+0$Bj
+0$gej
+0$Fhj
+0$Taj
+0$0fhj
+0$0wj
+0$``j
+ma$`aj
+l$hj
+ll$hj
+ll$0j
+ll$3|j
+ll$hhhhhhj
+ll$Fpj
+lll$4|j
+lll$0lllj
+w$0wj
+w$bj
+jj0$0k
+jj0$^k
+jj0$kk
+jj0$0kk
+G0$ggj
+G0$0k
+j0$0k
+0$0dj
+0$0yjj
+0v$0j<esc>
+0$v0j<esc>
+0A<esc>0j
+0$i<esc>0j
+0$a<esc>0j
+0$0ix<esc>j
+0$xx0j
+0$r_0j
+0$~0j
+0$0J
+0$0jx
+0$0<c-v>jd

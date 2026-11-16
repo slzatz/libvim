@@ -714,6 +714,42 @@ is the fault, the `test_clear_undo_*` tests and the two beside them what the
 call does about it, and upstream's `test_undo_save` and `test_undo_sync` the
 other way of using `vimBufferSetLines()`, unchanged.
 
+## The column wanted after `$` is the one the cursor went to
+
+Nov 2026.
+
+**Upstream behavior.** `0$0j` put the cursor at the end of the next line. So
+did `$^j` and `$ggj`, `l$hj` from column 1, and any motion along the line
+that brought the cursor back to the column where a motion had last left it:
+`j` and `k` went on wanting the end of the line, or whatever column the
+cursor had been taken to in between. vim goes to the column the cursor is in.
+
+It took a line of 80 characters or fewer, which is most lines but not a
+paragraph kept on one line, and a cursor that an earlier motion had placed:
+`$0j` as the first keys in a buffer was right.
+
+The cause is `update_topline()` (`move.c`), which libvim made a function that
+does nothing, since the embedder scrolls. In vim it begins with
+`check_cursor_moved()`, and `curs_columns()` counts on that: it calls
+`update_topline()` first and then marks `w_virtcol` valid, which means valid
+for the cursor recorded in `w_valid_cursor`. With the check gone the record
+was not brought up to date. After `$` the column of the line's end was valid
+for a cursor still recorded where it had been before; a motion back to that
+column looked like no motion at all, and `update_curswant()` took the stale
+`w_virtcol` for the column wanted. On a longer line `$` scrolls libvim's own
+window sideways (80 columns, `'nowrap'`), and the change of `w_leftcol`
+invalidated the column by another route.
+
+**This fork.** `update_topline()` calls `check_cursor_moved(curwin)` and does
+nothing else.
+
+**If you relied on the old behavior.** Nothing to do.
+
+**Tests.** `apitest/normal_mode_curswant.c`: the five `test_curswant_reset_*`
+tests fail without the change, and `test_curswant_end_again` is `$` still
+wanting the end. `apitest/compare/cases/curswant.txt` is 56 sequences to
+compare with vim: 21 differed, none do.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,
