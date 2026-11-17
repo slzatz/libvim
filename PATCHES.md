@@ -123,7 +123,10 @@ mappings expanded when enabled (including an ex right-hand side), disabling
 stops expansion, enable is idempotent, and counts and `0` are unaffected;
 two- and three-key mappings in Insert and Normal mode, the first key kept
 when the second is not the mapping's, the timeout with and without a shorter
-mapping, and a waiting key going ahead of keys sent with mappings off.
+mapping, and a waiting key going ahead of keys sent with mappings off;
+`<Leader>` and `<LocalLeader>` (vim's own code, unchanged): a backslash when
+unset, a space leader in Normal and Visual mode with a lone space still a
+space after the timeout, and the leader read when the mapping is defined.
 
 ## Spell checking is back
 

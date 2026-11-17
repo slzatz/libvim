@@ -347,6 +347,87 @@ MU_TEST(test_multikey_normal_mapping)
                   "This is the second line of a test file") == 0);
 }
 
+/* <Leader> and <LocalLeader> are replaced when the mapping is defined, by
+   g:mapleader and g:maplocalleader, or by a backslash when they are unset. */
+
+MU_TEST(test_leader_defaults_to_backslash)
+{
+  vimExecute("silent! unlet g:mapleader");
+  vimExecute("nnoremap <Leader>d dd");
+  mu_check(strcmp("\\d", (char *)lastMapping->m_keys) == 0);
+
+  vimSetMappingsEnabled(TRUE);
+  vimInput("\\");
+  mu_check(vimInputPending() == 1);
+  vimInput("d");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the second line of a test file") == 0);
+}
+
+MU_TEST(test_space_leader)
+{
+  vimExecute("let g:mapleader = \" \"");
+  vimExecute("nnoremap <Leader>d dd");
+  vimExecute("xnoremap <Leader>d d");
+  vimExecute("unlet g:mapleader");
+
+  vimSetMappingsEnabled(TRUE);
+  vimInput(" ");
+  mu_check(vimInputPending() == 1);
+  vimInput("d");
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the second line of a test file") == 0);
+
+  // in Visual mode too
+  vimInput("v");
+  vimInput("e");
+  vimInput(" ");
+  vimInput("d");
+  mu_check((vimGetMode() & NORMAL) == NORMAL);
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  " is the second line of a test file") == 0);
+
+  // a space on its own is still a space once 'timeoutlen' is up
+  vimInput(" ");
+  vimInputTimeout();
+  vimSetMappingsEnabled(FALSE);
+  mu_check(vimInputPending() == 0);
+  mu_check(vimCursorGetColumn() == 1);
+}
+
+MU_TEST(test_leader_is_read_when_the_mapping_is_defined)
+{
+  vimExecute("let g:mapleader = \",\"");
+  vimExecute("nnoremap <Leader>d dd");
+  vimExecute("let g:mapleader = \"_\"");
+
+  vimSetMappingsEnabled(TRUE);
+  vimInput(",");
+  vimInput("d");
+  vimSetMappingsEnabled(FALSE);
+  vimExecute("unlet g:mapleader");
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the second line of a test file") == 0);
+}
+
+MU_TEST(test_local_leader)
+{
+  vimExecute("let g:maplocalleader = \",\"");
+  vimExecute("nnoremap <LocalLeader>d dd");
+  vimExecute("unlet g:maplocalleader");
+
+  vimSetMappingsEnabled(TRUE);
+  vimInput(",");
+  vimInput("d");
+  vimSetMappingsEnabled(FALSE);
+
+  mu_check(strcmp(vimBufferGetLine(curbuf, 1),
+                  "This is the second line of a test file") == 0);
+}
+
 MU_TEST(test_three_key_mapping)
 {
   vimExecute("nnoremap ,dd x");
@@ -417,6 +498,10 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_timeout_with_nothing_waiting_does_nothing);
   MU_RUN_TEST(test_multikey_normal_mapping);
   MU_RUN_TEST(test_three_key_mapping);
+  MU_RUN_TEST(test_leader_defaults_to_backslash);
+  MU_RUN_TEST(test_space_leader);
+  MU_RUN_TEST(test_leader_is_read_when_the_mapping_is_defined);
+  MU_RUN_TEST(test_local_leader);
   MU_RUN_TEST(test_waiting_key_goes_first_when_mappings_are_turned_off);
   MU_RUN_TEST(test_string_of_keys_keeps_its_order);
 
