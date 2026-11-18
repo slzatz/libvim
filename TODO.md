@@ -85,22 +85,6 @@ does `vungetc(nc)`. The state knows which case it is at cleanup (`i > 0` and
 
 ## Crash, exit, hang
 
-### 4. `<PasteStart>` crashes
-
-`vimKey("<PasteStart>")` in Normal, Insert or Command-line mode, or the key
-on the right-hand side of a mapping, is a segfault: `bracketed_paste()`
-(`edit.c`) takes `STRLEN()` of `find_termcode("PE")`, which is NULL, and
-would then read keys from a terminal libvim does not have. In Visual mode it
-deletes the selection and starts Insert mode. vimango pastes by its own
-means and says so in `paste.go`. Proposed: make the key do nothing.
-
-### 5. `:cq` ends the process
-
-`ex_cquit()` (`ex_docmd.c`) calls `getout(1)`, which is `exit(1)`. The quit
-callback is not called. `:q`, `:qa` and `:qa!` go to the callback. Reachable
-by `:execute 'cq'` whatever the embedder filters on its command line.
-Proposed: call the callback as a forced quit, or refuse.
-
 ### 6. Nothing can stop a command that does not end
 
 `:while 1 | endwhile`. `:nmap x xx` then `x` (vim loops on this too, until

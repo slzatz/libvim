@@ -1665,6 +1665,17 @@ int vgetc(void)
           c = K_END;
         break;
 
+      // A bracketed paste is the terminal's, and libvim has no terminal:
+      // there is no end code to read up to (find_termcode("PE") is NULL,
+      // and bracketed_paste() crashed taking its length), and nothing to
+      // read the paste from. An embedder pastes by sending the text. So the
+      // keys are nothing, wherever they come from -- a mapping, ":normal",
+      // ":execute" -- and in every mode.
+      case K_PS:
+      case K_PE:
+        c = K_IGNORE;
+        break;
+
       case K_XUP:
         c = K_UP;
         break;

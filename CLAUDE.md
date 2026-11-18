@@ -116,7 +116,7 @@ does not affect the generated config.
 ### Running the API tests
 
 `./build-macos.sh --tests` (or `./build-linux.sh --tests`) builds and runs all
-67 of them and reports pass/fail per test. To run a single test by hand:
+68 of them and reports pass/fail per test. To run a single test by hand:
 
 ```bash
 cd src
@@ -260,7 +260,6 @@ As of 2026-11-12. None of these is started. vimango's `docs/VIM_COMMANDS.md` is 
 - **Keys upstream commented out.** CTRL-\ CTRL-N in Insert mode is not a command: the two control characters are inserted as text. CTRL-\ e on a command line types `e`. CTRL-K inserts `^K` (digraphs are not compiled in).
 - **Listings are laid out for `Columns`** (80 unless set), whatever the embedder's width: `:registers` truncates there.
 - **`feedkeys()` does nothing**, with or without the `x` flag: the body of `f_feedkeys()` (`evalfunc.c`) is commented out. `:source!` does nothing either; that one is the `TODO` in `getchar.c`, "Wire-up to sm_execute_normal".
-- **`<PasteStart>` segfaults** in Normal, Insert and Command-line mode (`bracketed_paste()`, `edit.c`), and **`:cq` exits the process** without the quit callback. Both are in TODO.md.
 - `vimSetCursorAddCallback()` and its global still exist and are wired up in `libvim.c`; nothing calls them for a blockwise `I`/`A` any more.
 
 ## What this fork changed

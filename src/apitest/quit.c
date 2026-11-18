@@ -59,6 +59,27 @@ MU_TEST(test_xit)
   mu_check(lastForce == TRUE);
 }
 
+// vim's ":cq" exits with an error code. Here it asks the embedder to quit
+// everything, by force, as ":qa!" does; it never ends the process (it was
+// exit(1), and this program ended with it).
+MU_TEST(test_cquit)
+{
+  vimExecute("cq");
+
+  mu_check(quitCount == 1);
+  mu_check(lastQuitBuf == NULL);
+  mu_check(lastForce == TRUE);
+
+  vimExecute("execute 'cquit'");
+  mu_check(quitCount == 2);
+
+  vimInput(":");
+  vimInput("c");
+  vimInput("q");
+  vimKey("<cr>");
+  mu_check(quitCount == 3);
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
@@ -67,6 +88,7 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_q_force);
   MU_RUN_TEST(test_xall);
   MU_RUN_TEST(test_xit);
+  MU_RUN_TEST(test_cquit);
 }
 
 int main(int argc, char **argv)

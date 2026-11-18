@@ -779,6 +779,40 @@ as soon as the key returns.
 `test_curswant_dollar_first_in_buffer`, and four more sequences in
 `apitest/compare/cases/curswant.txt`.
 
+## Nothing a command or key does ends the process: `:cq` and `<PasteStart>`
+
+Nov 2026.
+
+**Upstream behavior.** `:cq` called `getout(1)`, which is `exit(1)`: the
+process ended there, and the quit callback was never called, though `:q`,
+`:qa` and `:qa!` all go to it. An embedder that refused `:cq` on its own
+command line still met it through `:execute 'cq'` or a mapping.
+
+`<PasteStart>`, the key a terminal sends before a bracketed paste, crashed in
+Normal, Insert and Command-line mode, from a mapping, `:normal` or
+`:execute` as well as from `vimKey()`: `bracketed_paste()` (`edit.c`) takes
+the length of the paste's end code, `find_termcode("PE")`, which libvim does
+not have, and would then have read the paste from a terminal it does not
+have either. In Visual mode it deleted the selection and started Insert
+mode.
+
+**This fork.** `:cq` (`ex_cquit()`, `ex_docmd.c`) calls the quit callback as
+`:qa!` does — no buffer, forced — and nothing else; while the command line is
+locked it says so and does nothing. `vgetc()` (`getchar.c`) turns
+`<PasteStart>` and `<PasteEnd>` into `K_IGNORE`, which every state already
+skips, so the keys do nothing wherever they come from. `bracketed_paste()`
+is no longer reached. An embedder pastes by sending the text, with `'paste'`
+set if it wants it taken literally.
+
+**If you relied on the old behavior.** If your quit callback ends the
+process, `:cq` still does, through it; the exit code is the callback's to
+choose. Nothing can have relied on `<PasteStart>`.
+
+**Tests.** `apitest/quit.c`, `test_cquit` (`:cq`, `:execute 'cquit'`, and
+typed); `apitest/paste_start.c`, the key in each mode, in a mapping and in
+`:normal`. Before the change the first ended the test program and the second
+crashed it.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

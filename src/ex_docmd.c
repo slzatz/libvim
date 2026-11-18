@@ -5584,13 +5584,26 @@ ex_quit(exarg_T *eap)
 }
 
 /*
- * ":cquit".
+ * ":cquit". vim exits with an error code and writes nothing. libvim does not
+ * end the process: like ":qa!", it asks the embedder to quit everything, by
+ * force. Upstream called getout(1), which is exit(1), and the quit callback
+ * never heard of it -- reachable by ":execute 'cq'" whatever the embedder
+ * refused on its own command line.
  */
 static void
 ex_cquit(exarg_T *eap UNUSED)
 {
-  getout(1); /* this does not always pass on the exit code to the Manx
-		   compiler. why? */
+  /* Don't quit while editing the command line. */
+  if (text_locked())
+  {
+    text_locked_msg();
+    return;
+  }
+
+  if (quitCallback != NULL)
+  {
+    quitCallback(NULL, TRUE);
+  }
 }
 
 /*
