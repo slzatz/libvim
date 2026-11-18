@@ -116,7 +116,7 @@ does not affect the generated config.
 ### Running the API tests
 
 `./build-macos.sh --tests` (or `./build-linux.sh --tests`) builds and runs all
-68 of them and reports pass/fail per test. To run a single test by hand:
+69 of them and reports pass/fail per test. To run a single test by hand:
 
 ```bash
 cd src
@@ -283,6 +283,10 @@ A key that begins a longer mapping (`j` of `jk`) waits in the typeahead buffer. 
 ### Keys that wait for another key (2026-11)
 
 vim reads a second key with `plain_vgetc()` and a line with `getcmdline()`, and both wait. Nothing in libvim may: `vimInput()` must return. **A call to either that is still in the tree and can be reached is a hang** — `"=` was one. The pattern for replacing one: the state notes that it is owed a key (`ctrlr` in the Insert and command-line states, `is_ctrlg`, `is_ctrlv`) and handles it at the top of its next `execute` call; for a whole line, push the command-line state (`sm_push_cmdline('=', 0, 0)`) and read `ccline.cmdbuff` when the key that ended it comes back down (`COMPLETED_UNHANDLED` hands that key to the state underneath; `NULL` means `<Esc>`). CTRL-R is done this way in `edit.c` (`ins_reg_key()`) and `ex_getln.c` (top of `state_cmdline_execute()`), and `"=` / `@=` in `normal.c` (the `CMDLINE` return in `state_normal_cmd_execute()`). Commented out, and so missing (see "Known gaps" for what the keys do instead): CTRL-\ CTRL-N and CTRL-\ e (CTRL-K waits too, but digraphs are not compiled in). **A waiting reader that is still in the tree gives up at once**: when a key is asked for and none is in the typeahead, `vgetorpeek()` hands back `<Esc>` (CTRL-C on a command line) — vim's own answer inside `:normal`, given always — so `input()` returns `''`, the debugger continues, a yes/no question is answered no. That is a floor, not support: the user is never asked. `:s` with the `c` flag is refused before it gets that far (`do_sub()`). Tests: `apitest/no_waiting.c`. Tests: `apitest/ctrl_r.c`.
+
+### Interrupts (2026-11)
+
+`vimInterrupt()` sets `got_int` from another thread; vim's own loops do the stopping. What libvim adds is what vim's `main_loop()` did with it: `sm_run()` stops after the one key `vgetorpeek()` gives for an interrupt (dropping it in Normal mode), and every call that runs commands clears `got_int` and flushes the typeahead on the way in and out (`interrupt_done()`, `libvim.c`). **A new entry point that runs commands needs `interrupt_done()` at both ends**, or an interrupt during it outlives it and every later key is answered with CTRL-C. **Do not clear `got_int` anywhere inside a call**: `:while 1 | execute "normal! jk" | endwhile` is interrupted inside the `:normal`, and the `:while` around it has to see the flag too. Tests: `apitest/interrupt.c`.
 
 ### A typed search (2026-11)
 

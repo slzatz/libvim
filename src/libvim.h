@@ -287,6 +287,23 @@ int vimInputPending(void);
 void vimInputTimeout(void);
 
 /*
+ * vimInterrupt
+ *
+ * What CTRL-C is in vim: it stops the command that is running -- a
+ * ":while 1 | endwhile", a mapping that types itself again, a function that
+ * never returns -- and the vimInput(), vimKey(), vimExecute() or
+ * vimInputTimeout() that ran it returns. Keys still waiting to be run are
+ * dropped.
+ *
+ * libvim reads no keys while it runs a command, so the user's CTRL-C cannot
+ * reach it as a key: call this from another thread, or a signal handler,
+ * while that call is running. It only sets a flag (vim's got_int), and is
+ * safe from either. An interrupt is for the call it arrives during: one that
+ * arrives between calls is forgotten when the next call starts.
+ */
+void vimInterrupt(void);
+
+/*
  * vimSetFileWritesEnabled
  *
  * With FALSE, vim writes no file, whatever asks: `:w name`, `:saveas`,

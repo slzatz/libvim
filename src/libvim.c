@@ -261,8 +261,27 @@ colnr_T vimCursorGetColumnWant(void)
   return curwin->w_curswant;
 }
 
+/*
+ * An interrupt (vimInterrupt()) is for the call into libvim it arrives
+ * during. vim's main_loop() clears got_int after an interrupted command and
+ * flushes the typeahead; libvim has no main loop, so each call that runs
+ * commands does it on the way in -- an interrupt that came between calls is
+ * forgotten -- and on the way out, so that nothing the embedder asks
+ * afterwards (search highlights, spelling) sees a stale one and stops short.
+ */
+static void interrupt_done(void)
+{
+  if (got_int)
+  {
+    flush_buffers(FLUSH_INPUT);
+    got_int = FALSE;
+  }
+}
+
 void vimInputCore(int should_replace_termcodes, char_u *input)
 {
+  interrupt_done();
+
   // The column wanted may be waiting to be worked out from where the cursor
   // is: a buffer was entered, or something outside a command moved the
   // cursor. vim's main_loop() settles that before each command, and so it
@@ -309,6 +328,8 @@ void vimInputCore(int should_replace_termcodes, char_u *input)
 
   update_curswant();
   curs_columns(TRUE);
+
+  interrupt_done();
 }
 
 void vimInput(char_u *input)
@@ -323,7 +344,16 @@ void vimKey(char_u *key)
 
 int vimInputPending(void) { return typeahead_pending(); }
 
-void vimInputTimeout(void) { sm_execute_timeout(); }
+void vimInputTimeout(void)
+{
+  interrupt_done();
+  sm_execute_timeout();
+  interrupt_done();
+}
+
+/* Only sets the flag: it may be called from another thread or a signal
+ * handler, while a call into libvim is running. */
+void vimInterrupt(void) { got_int = TRUE; }
 
 int vimVisualIsActive(void) { return VIsual_active; }
 
@@ -665,11 +695,13 @@ void vimExecuteLines(char_u **lines, int lineCount)
   cookie.lineCount = lineCount;
   cookie.nextLine = 0;
 
+  interrupt_done();
   do_cmdline(
       NULL,
       &vimExecute_getLine,
       &cookie,
       DOCMD_VERBOSE | DOCMD_REPEAT | DOCMD_NOWAIT | DOCMD_KEYTYPED);
+  interrupt_done();
 }
 
 void vimExecute(char_u *cmd)
@@ -803,9 +835,11 @@ void vimSetDisplayVersionCallback(VoidCallback callback)
 
 char_u *vimEval(char_u *str)
 {
+  interrupt_done();
   char_u *copy = vim_strsave(str);
   char_u *ret = eval_to_string(copy, NULL, TRUE);
   vim_free(copy);
+  interrupt_done();
   return ret;
 }
 

@@ -813,6 +813,52 @@ typed); `apitest/paste_start.c`, the key in each mode, in a mapping and in
 `:normal`. Before the change the first ended the test program and the second
 crashed it.
 
+## A running command can be interrupted: `vimInterrupt()`
+
+Nov 2026.
+
+**Upstream behavior.** Nothing could stop a command that does not end —
+`:while 1 | endwhile`, a mapping that types itself again (`:nmap Q jkQ`), a
+function that never returns. libvim reads no keys while it runs one, so the
+user's CTRL-C could not reach it, and the call never returned. Setting vim's
+`got_int` from outside did stop a `:while`, but nothing cleared it
+afterwards — vim's `main_loop()` does, and libvim has none — so
+`vgetorpeek()` answered every later request for a key with CTRL-C: the next
+`vimInput()` never returned, and sent "Type :qa! and press <Enter> to abandon
+all changes and exit Vim" to the message callback as fast as it could.
+
+**This fork.** `vimInterrupt()` sets `got_int` and nothing else, so it may be
+called from another thread or a signal handler while a call into libvim is
+running. Whatever checks `got_int` in vim stops — `:while`, `:for`, a
+function, mapping expansion, a search — and the call returns:
+
+- `sm_run()` (`state_machine.c`), which hands typed keys to the states, takes
+  one more key once interrupted — the `<Esc>` or CTRL-C `vgetorpeek()` gives
+  for it — and stops. In Insert mode and on a command line that key ends
+  them, as in vim. In Normal mode it is dropped: it was not typed, and as a
+  typed CTRL-C it would say how to quit vim.
+- `vimInputCore()` (`vimInput()`, `vimKey()`), `vimExecuteLines()`
+  (`vimExecute()`), `vimInputTimeout()` and `vimEval()` clear `got_int` and
+  flush the typeahead on the way in and on the way out (`interrupt_done()`,
+  `libvim.c`), which is what `main_loop()` does in vim. On the way in, an
+  interrupt that came between calls is forgotten; on the way out, nothing
+  the embedder asks afterwards (search highlights, spelling) sees a stale
+  one and stops short.
+
+An interrupt is for the call it arrives during. A command that loops in C
+without looking at `got_int` is not stopped; vim's own loops look.
+
+**If you relied on the old behavior.** Nothing to do: until
+`vimInterrupt()` is called, nothing sets `got_int` (`vimInit()` installs no
+signal handlers), and the clearing does nothing.
+
+**Tests.** `apitest/interrupt.c`: `:while` run, typed a key at a time and
+typed in one call, a mapping that never ends in Normal and in Insert mode, `:while` around `:normal`, a
+function that never returns, and an interrupt between calls; none may say
+how to quit vim. A second thread interrupts after 200 ms; before the change, with `vimInterrupt()` alone, the
+program never finished. `apitest/compare` gives the same results for all
+2,692 cases as before the change.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

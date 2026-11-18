@@ -85,26 +85,6 @@ does `vungetc(nc)`. The state knows which case it is at cleanup (`i > 0` and
 
 ## Crash, exit, hang
 
-### 6. Nothing can stop a command that does not end
-
-`:while 1 | endwhile`. `:nmap x xx` then `x` (vim loops on this too, until
-CTRL-C). `vimInput()` and `vimExecute()` do not return, and libvim has no
-CTRL-C: a key cannot arrive during a call.
-
-Setting vim's `got_int` from outside (a signal handler, another thread) does
-stop `:while`. But nothing clears it afterwards — vim's `main_loop()` does,
-every time round — so `vgetorpeek()` then answers CTRL-C to every request
-without end: the next `vimInput()` never returns, and the message callback
-is sent "Type :qa! and press <Enter> to abandon all changes and exit Vim"
-as fast as it can take them.
-
-Proposed: `vimInterrupt()`, which sets `got_int` and nothing else, so that it
-may be called from a signal handler; and `got_int` cleared where a call into
-libvim starts (`vimInputCore()`, `vimExecuteLines()`, `vimInputTimeout()`).
-`vimInit()` installs no signal handlers (checked), so nothing else sets it
-behind the embedder's back. A test: an alarm that calls `vimInterrupt()`
-during `:while 1`, and a key that works afterwards.
-
 ### 7. Smaller
 
 - `vimWindowSetWidth(100000)` then `vimWindowSetHeight(100000)` does not

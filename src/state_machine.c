@@ -215,7 +215,7 @@ void sm_execute_normal(char_u *cmd, int preserveState)
  * Hand every key vim can get from the typeahead buffer to the current state.
  * It stops when vpeekc() has nothing to give: the buffer is empty, or what is
  * left is the start of a longer mapping, which stays there for the next key
- * or for sm_execute_timeout().
+ * or for sm_execute_timeout(). It stops too when it is interrupted.
  */
 static void sm_run(void)
 {
@@ -224,9 +224,25 @@ static void sm_run(void)
     sm_push_normal();
   }
 
+  // An interrupt ends the run, after one more key. vgetorpeek() answers
+  // every request with CTRL-C while got_int is set (<Esc> in Insert mode or
+  // on a command line, inside a mapping), having flushed the typeahead, so
+  // vpeekc() would never come back empty. That key goes to the state, which
+  // ends Insert mode or a command line with it, as in vim, and then the run
+  // stops; the call into libvim that this is part of clears got_int on the
+  // way out (interrupt_done(), libvim.c). In Normal mode the CTRL-C is
+  // dropped: it was not typed, and taken as typed it says how to quit vim
+  // ("Type :qa and press <Enter>"). sm_execute_normal() stops at once.
   while (vpeekc() != NUL)
   {
-    if (!sm_handle_key(vgetc()))
+    int c = vgetc();
+    int interrupted = got_int;
+
+    if (interrupted && c == Ctrl_C && (State & NORMAL))
+    {
+      return;
+    }
+    if (!sm_handle_key(c) || interrupted)
     {
       return;
     }

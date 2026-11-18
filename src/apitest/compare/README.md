@@ -93,9 +93,9 @@ For `sweep.sh`:
 
 | | cases | did not come back |
 |---|---|---|
-| `cases/sweep-ex.txt` | 752 | 1 (`:cq`) |
+| `cases/sweep-ex.txt` | 752 | 1 (`:cq`); 0 since `d57f18c3c` |
 | `cases/sweep-functions.txt` | 326 | 0 |
-| `cases/sweep-keys.txt` | 201 | 3 (`<PasteStart>`) |
+| `cases/sweep-keys.txt` | 201 | 3 (`<PasteStart>`); 0 since `d57f18c3c` |
 
 A number that goes up after a change is the thing to look at. So is a case
 that no longer differs.
