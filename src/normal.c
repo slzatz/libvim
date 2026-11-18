@@ -6541,14 +6541,9 @@ static void nv_esc(cmdarg_T *cap)
 
   if (cap->arg) /* TRUE for CTRL-C */
   {
-    if (restart_edit == 0 && !VIsual_active && no_reason)
-    {
-      if (anyBufIsChanged())
-        msg(_("Type  :qa!  and press <Enter> to abandon all changes and exit "
-              "Vim"));
-      else
-        msg(_("Type  :qa  and press <Enter> to exit Vim"));
-    }
+    /* vim says here, with nothing to cancel, how to quit it ("Type :qa and
+     * press <Enter> to exit Vim"). libvim has no screen, and how an embedder
+     * quits is its own: nothing is said. */
 
     /* Don't reset "restart_edit" when 'insertmode' is set, it won't be
      * set again below when halfway a mapping. */

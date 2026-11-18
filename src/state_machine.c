@@ -227,21 +227,16 @@ static void sm_run(void)
   // An interrupt ends the run, after one more key. vgetorpeek() answers
   // every request with CTRL-C while got_int is set (<Esc> in Insert mode or
   // on a command line, inside a mapping), having flushed the typeahead, so
-  // vpeekc() would never come back empty. That key goes to the state, which
-  // ends Insert mode or a command line with it, as in vim, and then the run
-  // stops; the call into libvim that this is part of clears got_int on the
-  // way out (interrupt_done(), libvim.c). In Normal mode the CTRL-C is
-  // dropped: it was not typed, and taken as typed it says how to quit vim
-  // ("Type :qa and press <Enter>"). sm_execute_normal() stops at once.
+  // vpeekc() would never come back empty. That key goes to the state as a
+  // typed one would -- it ends Insert mode or a command line, and cancels
+  // what was half typed in Normal mode -- and then the run stops; the call
+  // into libvim that this is part of clears got_int on the way out
+  // (interrupt_done(), libvim.c). sm_execute_normal() stops at once.
   while (vpeekc() != NUL)
   {
     int c = vgetc();
-    int interrupted = got_int;
+    int interrupted = got_int; /* c is the interrupt's key */
 
-    if (interrupted && c == Ctrl_C && (State & NORMAL))
-    {
-      return;
-    }
     if (!sm_handle_key(c) || interrupted)
     {
       return;

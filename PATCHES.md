@@ -834,9 +834,10 @@ function, mapping expansion, a search — and the call returns:
 
 - `sm_run()` (`state_machine.c`), which hands typed keys to the states, takes
   one more key once interrupted — the `<Esc>` or CTRL-C `vgetorpeek()` gives
-  for it — and stops. In Insert mode and on a command line that key ends
-  them, as in vim. In Normal mode it is dropped: it was not typed, and as a
-  typed CTRL-C it would say how to quit vim.
+  for it — and stops. The state takes that key as a typed one: in Insert
+  mode and on a command line it ends them, as in vim, and in Normal mode it
+  cancels what was half typed. (Until the next section it was dropped in
+  Normal mode, where a typed CTRL-C said how to quit vim.)
 - `vimInputCore()` (`vimInput()`, `vimKey()`), `vimExecuteLines()`
   (`vimExecute()`), `vimInputTimeout()` and `vimEval()` clear `got_int` and
   flush the typeahead on the way in and on the way out (`interrupt_done()`,
@@ -853,11 +854,39 @@ without looking at `got_int` is not stopped; vim's own loops look.
 signal handlers), and the clearing does nothing.
 
 **Tests.** `apitest/interrupt.c`: `:while` run, typed a key at a time and
-typed in one call, a mapping that never ends in Normal and in Insert mode, `:while` around `:normal`, a
-function that never returns, and an interrupt between calls; none may say
-how to quit vim. A second thread interrupts after 200 ms; before the change, with `vimInterrupt()` alone, the
-program never finished. `apitest/compare` gives the same results for all
+typed in one call, a mapping that never ends in Normal and in Insert mode,
+`:while` around `:normal`, a function that never returns, and an interrupt
+between calls; none may say how to quit vim. A second thread interrupts
+after 200 ms; before the change, with `vimInterrupt()` alone, the program
+never finished. `apitest/compare` gives the same results for all
 2,692 cases as before the change.
+
+## CTRL-C in Normal mode says nothing
+
+Nov 2026.
+
+**Upstream behavior.** CTRL-C in Normal mode with nothing to cancel sent
+vim's "Type  :qa  and press <Enter> to exit Vim" to the message callback —
+"Type  :qa!  and press <Enter> to abandon all changes and exit Vim" once a
+buffer had changed (`nv_esc()`, `normal.c`).
+
+**This fork.** Nothing is said. libvim has no screen, and how an embedder
+quits is its own: in vimango `:qa!` closes the note, and the message told a
+user who pressed CTRL-C that their changes were about to be abandoned.
+What CTRL-C does is unchanged — it cancels a count, an operator or a
+register typed, ends Visual mode, and calls the unhandled-escape callback.
+
+With nothing to avoid, `sm_run()` no longer drops the CTRL-C an interrupt
+leaves in Normal mode (previous section): it goes to the state like any
+other key.
+
+**If you relied on the old behavior.** Show your own hint on CTRL-C if you
+want one; the unhandled-escape callback is called for a CTRL-C with nothing
+to cancel, as before.
+
+**Tests.** `apitest/messages_reports.c`, `test_ctrl_c_says_nothing`;
+`apitest/interrupt.c`, every case of which checks that nothing says
+`:qa`. `apitest/compare`: the same results for all 2,692 cases.
 
 ## Other changes
 

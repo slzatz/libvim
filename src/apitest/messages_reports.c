@@ -156,6 +156,33 @@ MU_TEST(test_silent_sends_nothing)
   mu_check(messageCount == 0);
 }
 
+// vim answers CTRL-C in Normal mode, with nothing to cancel, with how to
+// quit it: "Type :qa and press <Enter> to exit Vim". libvim has no screen to
+// say it on, and how an embedder quits is its own, so nothing is said. What
+// CTRL-C does is unchanged: a count or an operator typed is cancelled.
+MU_TEST(test_ctrl_c_says_nothing)
+{
+  char first[256];
+
+  vimKey("<c-c>");
+  mu_check(messageCount == 0);
+
+  vimInput("x"); // a change: vim's message would then say ":qa!"
+  snprintf(first, sizeof(first), "%s", (char *)vimBufferGetLine(curbuf, 1));
+  vimKey("<c-c>");
+  mu_check(messageCount == 0);
+
+  // "3d" then CTRL-C: nothing is deleted, and "j" is a motion again
+  vimInput("3");
+  vimInput("d");
+  vimKey("<c-c>");
+  vimInput("j");
+  mu_check(strcmp((char *)vimBufferGetLine(curbuf, 1), first) == 0);
+  mu_check(vimBufferGetLineCount(curbuf) == 100);
+  mu_check(vimCursorGetLine() == 2);
+  mu_check(messageCount == 0);
+}
+
 MU_TEST_SUITE(test_suite)
 {
   MU_SUITE_CONFIGURE(&test_setup, &test_teardown);
@@ -169,6 +196,7 @@ MU_TEST_SUITE(test_suite)
   MU_RUN_TEST(test_visual_mode_gives_no_terminal_warning);
   MU_RUN_TEST(test_error_is_sent_once_as_an_error);
   MU_RUN_TEST(test_silent_sends_nothing);
+  MU_RUN_TEST(test_ctrl_c_says_nothing);
 }
 
 int main(int argc, char **argv)

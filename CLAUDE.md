@@ -286,7 +286,7 @@ vim reads a second key with `plain_vgetc()` and a line with `getcmdline()`, and 
 
 ### Interrupts (2026-11)
 
-`vimInterrupt()` sets `got_int` from another thread; vim's own loops do the stopping. What libvim adds is what vim's `main_loop()` did with it: `sm_run()` stops after the one key `vgetorpeek()` gives for an interrupt (dropping it in Normal mode), and every call that runs commands clears `got_int` and flushes the typeahead on the way in and out (`interrupt_done()`, `libvim.c`). **A new entry point that runs commands needs `interrupt_done()` at both ends**, or an interrupt during it outlives it and every later key is answered with CTRL-C. **Do not clear `got_int` anywhere inside a call**: `:while 1 | execute "normal! jk" | endwhile` is interrupted inside the `:normal`, and the `:while` around it has to see the flag too. Tests: `apitest/interrupt.c`.
+`vimInterrupt()` sets `got_int` from another thread; vim's own loops do the stopping. What libvim adds is what vim's `main_loop()` did with it: `sm_run()` stops after the one key `vgetorpeek()` gives for an interrupt, which goes to the state as a typed key would, and every call that runs commands clears `got_int` and flushes the typeahead on the way in and out (`interrupt_done()`, `libvim.c`). **A new entry point that runs commands needs `interrupt_done()` at both ends**, or an interrupt during it outlives it and every later key is answered with CTRL-C. **Do not clear `got_int` anywhere inside a call**: `:while 1 | execute "normal! jk" | endwhile` is interrupted inside the `:normal`, and the `:while` around it has to see the flag too. Tests: `apitest/interrupt.c`.
 
 ### A typed search (2026-11)
 
