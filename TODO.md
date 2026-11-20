@@ -167,9 +167,11 @@ which is what `sm_execute_normal()` does for `:normal`.
   better than silence. vimango refuses all of these.
 - CTRL-\ CTRL-N and CTRL-\ CTRL-G on a command line do not leave it, and
   the character typed next goes onto the line. "Known gaps" in CLAUDE.md
-  has the Insert-mode half of this.
-- CTRL-X in Insert mode is ignored (`FEAT_INS_EXPAND` is off), and the key
-  after it does what it does alone: CTRL-X CTRL-U deletes what was typed.
+  had the Insert-mode half of this, which was done 2026-11-20 (PATCHES.md).
+- CTRL-X in Insert mode, and the CTRL-X command after it, do nothing but
+  say completion is not available (`FEAT_INS_EXPAND` is off; PATCHES.md,
+  2026-11-20). CTRL-X CTRL-E and CTRL-X CTRL-Y, which scroll in vim, do
+  nothing either.
 - `:let @+ = 'x'` and `:let @* = 'x'` store nothing without a clipboard
   callback; `"+p` gives `E353`.
 

@@ -2162,6 +2162,9 @@ typedef struct
   int ctrlr;           /* CTRL-R was typed: 1 a register name is awaited, 2 one
                           after CTRL-R CTRL-R */
   int ctrlr_literally; /* CTRL-R CTRL-R or CTRL-R CTRL-O: insert literally */
+  int digraph;         /* CTRL-K was typed: 1 the first character of a digraph
+                          is awaited, 2 the second */
+  int digraph_c1;      /* the first, while the second is awaited */
 } cmdlineState_T;
 
 /*
@@ -2273,6 +2276,8 @@ void *state_cmdline_initialize(int c, long count UNUSED, int indent)
   context->is_ctrlv = FALSE;
   context->ctrlr = 0;
   context->ctrlr_literally = FALSE;
+  context->digraph = 0;
+  context->digraph_c1 = NUL;
 
   // if (ccline.cmdbuff != NULL)
   // {
@@ -2458,6 +2463,37 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
    * this state, and the <CR> or <Esc> that ends it is the key this function
    * is called with next ("ctrlr" is 3 meanwhile).
    */
+#ifdef FEAT_DIGRAPHS
+  /*
+   * libvim: the two characters after CTRL-K, a call each. vim's
+   * get_digraph() reads them with plain_vgetc(), which waits; the CTRL-K case
+   * below notes that they are awaited (not to be mapped). <Esc> cancels; a
+   * special key first is put on the line as itself, as in vim.
+   */
+  if (context->digraph != 0)
+  {
+    int first = context->digraph_c1;
+    int which = context->digraph;
+
+    if (which == 1 && c != ESC && !IS_SPECIAL(c))
+    {
+      context->digraph_c1 = c;
+      context->digraph = 2;
+      return HANDLED;
+    }
+    context->digraph = 0;
+    --no_mapping;
+    extra_char = NUL;
+    if (c == ESC)
+      goto cmdline_not_changed;
+    if (which == 2)
+      c = getdigraph(first, c, TRUE);
+    if (c == NUL)
+      goto cmdline_not_changed;
+    goto put_character;
+  }
+#endif
+
   if (context->ctrlr == 3)
   {
     char_u *expr = ccline.cmdbuff == NULL ? NULL : vim_strsave(ccline.cmdbuff);
@@ -3309,13 +3345,11 @@ executionStatus_T state_cmdline_execute(void *ctx, int c)
 #endif
 
 #ifdef FEAT_DIGRAPHS
-    case Ctrl_K:
-      putcmdline('?', TRUE);
-      c = get_digraph(TRUE);
-      extra_char = NUL;
-      if (c != NUL)
-        break;
-
+    case Ctrl_K: /* the two characters are the next keys, not to be mapped:
+                    see the top of this function */
+      context->digraph = 1;
+      context->digraph_c1 = NUL;
+      ++no_mapping;
       goto cmdline_not_changed;
 #endif /* FEAT_DIGRAPHS */
 
@@ -3449,6 +3483,9 @@ void state_cmdline_cleanup(void *ctx)
 
   /* left with the register name of a CTRL-R still to come */
   if (context->ctrlr == 1 || context->ctrlr == 2)
+    --no_mapping;
+  /* ...or a character of a digraph */
+  if (context->digraph != 0)
     --no_mapping;
 
   /* Trigger CmdlineLeave autocommands. */

@@ -782,7 +782,8 @@
 // ------------------------------------------------
 // Temporarily disabled features
 // ------------------------------------------------
-#undef FEAT_DIGRAPHS
+// (digraphs are back: CTRL-K reads its two keys a call at a time, edit.c and
+// ex_getln.c)
 
 // ------------------------------------------------
 // Features in the process of removing for 'libvim'

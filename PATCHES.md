@@ -888,6 +888,60 @@ to cancel, as before.
 `apitest/interrupt.c`, every case of which checks that nothing says
 `:qa`. `apitest/compare`: the same results for all 2,692 cases.
 
+## CTRL-K, CTRL-\ and the completion keys in Insert mode
+
+Nov 2026.
+
+**Upstream behavior.** Three kinds of Insert-mode key put a control
+character in the text:
+
+- **CTRL-K**, vim's digraph key (`CTRL-K a :` is `ä`): digraphs were "temporarily
+  disabled" in `feature.h`, and with them gone CTRL-K was a character. On the
+  command line too. vim's way of reading the two characters,
+  `ins_digraph()` and `get_digraph()`, waits for keys.
+- **CTRL-\ CTRL-N**, **CTRL-\ CTRL-G** and **CTRL-\ CTRL-O**, which leave Insert
+  mode: the code that reads the second key was commented out ("TODO: Bring
+  back this logic"), so both keys were inserted.
+- **CTRL-N**, **CTRL-P** and **CTRL-X**: keyword completion and the CTRL-X
+  commands are not compiled in (`FEAT_INS_EXPAND`), and vim without them
+  inserts the key. In an editor of notes the reflex CTRL-N put an invisible
+  `^N` in the text, and it was saved.
+
+**This fork.**
+
+| | |
+|---|---|
+| Insert: `CTRL-K {char1} {char2}` | the digraph, as in vim; `.` repeats it |
+| Command line: `CTRL-K {char1} {char2}` | the same, on the line |
+| `:digraphs`, `'digraph'` (`{char1} <BS> {char2}`), `digraph` in `has()` | as in vim |
+| Insert: `CTRL-\ CTRL-N`, `CTRL-\ CTRL-G` | leave Insert mode, as `<Esc>` does |
+| Insert: `CTRL-\ CTRL-O` | one Normal mode command, the cursor not moved back |
+| Insert: `CTRL-\ {other}` | a `^\` in the text, then {other} as typed (vim's own rule) |
+| Insert: `CTRL-N`, `CTRL-P`, `CTRL-X` | nothing is inserted, and the message callback gets "Completion is not available" |
+| Insert: `CTRL-X {key}` | a key that is one of CTRL-X's commands in vim (CTRL-N, CTRL-L, CTRL-U, `s`, CTRL-E …) does nothing more; any other ends CTRL-X mode and does what it does, as in vim |
+
+The keys after CTRL-K and CTRL-\ are read the way CTRL-R's register name is
+(previous sections): the state notes that it is owed them and takes them on
+its next calls, with `no_mapping` raised meanwhile, as vim raises it. As in
+vim, `<Esc>` after CTRL-K or after its first character cancels the digraph
+and stays in Insert mode (on the command line, stays on the line); a special
+key in the first place is inserted as itself; two characters that are no
+digraph give the second. If Insert mode is told to end (`:stopinsert`) while
+one of these keys is awaited, it is not awaited any more.
+
+What vim draws while it waits — a `?`, then the first character — is not
+reported; an embedder that wants it can look at the last key it sent.
+
+**Not done.** `r CTRL-K {char1} {char2}` and `f`/`t` with a digraph in
+Normal mode; CTRL-\ on the command line (`CTRL-\ CTRL-N`, `CTRL-\ e`);
+completion itself, which would need the embedder to draw its menu.
+
+**If you relied on the old behavior.** A literal control character is
+`CTRL-V` and the key, as in vim. A mapping on CTRL-N, CTRL-P or CTRL-X in
+Insert mode still wins: the message is only for the unmapped key.
+
+**Tests.** `apitest/digraph.c`, `apitest/insert_ctrl_bsl.c`. `apitest/compare`: 38 Insert-mode cases differ from vim (58 on 2026-11-12), and what is left of these keys among them is completion itself; Normal, Ex and the rest are as before, and both sweeps come back.
+
 ## Other changes
 
 - `3f9d02b14` — GCC 14+ warning suppressions in `src/Makefile`'s `WARN_FLAGS`,

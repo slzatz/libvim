@@ -83,8 +83,8 @@ For `compare.sh`, with the number that differed on 2026-11-12 (macOS, vim
 | | cases | differ |
 |---|---|---|
 | `cases/normal.txt` | 337 | 23 |
-| `cases/insert.txt` | 216 | 58 |
-| `cases/cmdline.txt` | 215 | 21 |
+| `cases/insert.txt` | 216 | 58; 38 on 2026-11-20, with CTRL-K, CTRL-\ and CTRL-X (PATCHES.md) — what is left of those keys is completion itself |
+| `cases/cmdline.txt` | 215 | 21; 20 on 2026-11-20 |
 | `cases/ex.txt` | 364 | 33 |
 | `cases/ctrl-o-forced-motion.txt` | 155 | 2 |
 | `cases/curswant.txt` (added 2026-11-16, with the fixes it is for) | 60 | 0 |

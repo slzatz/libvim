@@ -122,6 +122,12 @@ typedef struct
   int is_ctrlg;  /* If ctrl-g was pressed last */
   int ctrlr;           /* CTRL-R was typed: which key is awaited (CTRLR_*) */
   int ctrlr_literally; /* the CTRL-R, CTRL-O or CTRL-P after it, or 0 */
+  int ctrlbsl;         /* CTRL-\ was typed: the key after it is awaited */
+  int digraph;         /* CTRL-K was typed: 1 the first character of a
+                          digraph is awaited, 2 the second */
+  int digraph_c1;      /* the first, while the second is awaited */
+  int ctrlx;           /* CTRL-X was typed: the key after it may be one of
+                          its commands */
 } editState_T;
 
 /* What the Insert state waits for after CTRL-R. */
@@ -150,6 +156,10 @@ void *state_edit_initialize(int cmdchar, int startln, long count)
   context->ctrlv_ret = 0;
   context->ctrlr = CTRLR_NONE;
   context->ctrlr_literally = 0;
+  context->ctrlbsl = FALSE;
+  context->digraph = 0;
+  context->digraph_c1 = NUL;
+  context->ctrlx = FALSE;
 
   /* Remember whether editing was restarted after CTRL-O. */
   did_restart_edit = restart_edit;
@@ -384,6 +394,9 @@ void state_edit_cleanup(void *ctx)
    * give back what was taken for it. */
   if (context->ctrlr == CTRLR_NAME || context->ctrlr == CTRLR_NAME2)
     --no_mapping;
+  /* ...or with the key after a CTRL-\ or CTRL-K */
+  if (context->ctrlbsl || context->digraph != 0)
+    --no_mapping;
   vim_free(context);
 }
 
@@ -416,6 +429,96 @@ executionStatus_T state_edit_execute(void *ctx, int c)
     ins_reg_key(context, c);
     return HANDLED;
   }
+
+  /*
+   * libvim: the key after CTRL-\. vim reads it with plain_vgetc(), which
+   * waits; upstream commented the whole of it out, and CTRL-\ CTRL-N put two
+   * control characters in the text. The CTRL-\ below notes that a key is
+   * awaited (not to be mapped, as in vim), and this is the key:
+   *
+   *   CTRL-\ CTRL-N   go to Normal mode
+   *   CTRL-\ CTRL-G   go to the mode 'insertmode' selects (Normal when off)
+   *   CTRL-\ CTRL-O   like CTRL-O, but the cursor does not move
+   *   CTRL-\ {other}  a CTRL-\ in the text, and then {other} as typed
+   */
+  /*
+   * libvim: the key after CTRL-X. In vim it is one of CTRL-X's completion
+   * commands, or else ends CTRL-X mode and does what it does. None of those
+   * commands is compiled in (FEAT_INS_EXPAND): one of their keys does
+   * nothing, as CTRL-X did, rather than what it does on its own -- CTRL-X
+   * CTRL-U would delete what was typed, CTRL-X s insert an "s".
+   */
+  if (context->ctrlx)
+  {
+    context->ctrlx = FALSE;
+    if (vim_strchr((char_u *)"\005\006\004\011\013\014\016\017\020\022\023\024\025\026\031\032\035sS", c) != NULL && c != NUL)
+      return HANDLED;
+  }
+
+  /* Insert mode was told to end (":stopinsert", from the embedder or a
+   * mapping) while a key was awaited: the key is not awaited any more. */
+  if (stop_insert_mode && (context->ctrlbsl || context->digraph != 0))
+  {
+    context->ctrlbsl = FALSE;
+    context->digraph = 0;
+    --no_mapping;
+  }
+
+  if (context->ctrlbsl)
+  {
+    context->ctrlbsl = FALSE;
+    --no_mapping;
+    if (c == Ctrl_N || c == Ctrl_O || (c == Ctrl_G && !p_im))
+    {
+      if (c == Ctrl_O)
+      {
+        ins_ctrl_o();
+        ins_at_eol = FALSE; /* cursor keeps its column */
+        context->nomove = TRUE;
+      }
+      context->count = 0;
+      goto doESCkey;
+    }
+    if (c == Ctrl_G) /* already in the mode 'insertmode' selects */
+      return HANDLED;
+    insert_special(Ctrl_BSL, FALSE, FALSE);
+    /* and on to {other} */
+  }
+
+#ifdef FEAT_DIGRAPHS
+  /*
+   * libvim: the two characters after CTRL-K. vim's ins_digraph() reads them
+   * with plain_vgetc(); here the CTRL-K case notes that they are awaited (not
+   * to be mapped), and they arrive one call at a time. As in vim: <Esc>
+   * after CTRL-K, or after its first character, cancels it and stays in
+   * Insert mode; a special key first is inserted as itself; and what is
+   * inserted is repeated by "." literally.
+   */
+  if (context->digraph != 0)
+  {
+    int first = context->digraph_c1;
+
+    if (context->digraph == 1 && c != ESC && !IS_SPECIAL(c) && mod_mask == 0)
+    {
+      context->digraph_c1 = c;
+      context->digraph = 2;
+      return HANDLED;
+    }
+    --no_mapping;
+    if (context->digraph == 1 && c != ESC)
+    {
+      context->digraph = 0;
+      insert_special(c, TRUE, FALSE);
+      return HANDLED;
+    }
+    context->digraph = 0;
+    if (c == ESC)
+      return HANDLED;
+    AppendToRedobuff((char_u *)CTRL_V_STR);
+    c = getdigraph(first, c, TRUE);
+    goto normalchar;
+  }
+#endif
 
 #ifdef FEAT_RIGHTLEFT
   if (!revins_legal)
@@ -525,8 +628,15 @@ executionStatus_T state_edit_execute(void *ctx, int c)
 
     /* CTRL-\ CTRL-N goes to Normal mode,
      * CTRL-\ CTRL-G goes to mode selected with 'insertmode',
-     * CTRL-\ CTRL-O is like CTRL-O but without moving the cursor.  */
-    /* TODO: Bring back this logic */
+     * CTRL-\ CTRL-O is like CTRL-O but without moving the cursor.
+     * libvim: the key after CTRL-\ is the next call's; see the top of this
+     * function. vim's way of reading it, kept below for comparison, waits. */
+  if (c == Ctrl_BSL)
+  {
+    context->ctrlbsl = TRUE;
+    ++no_mapping;
+    return HANDLED;
+  }
     /* if (c == Ctrl_BSL) */
     /* { */
     /*     /1* may need to redraw when no more chars available now *1/ */
@@ -918,12 +1028,27 @@ executionStatus_T state_edit_execute(void *ctx, int c)
     break;
 
 #if defined(FEAT_DIGRAPHS)
-  case Ctrl_K: /* digraph or keyword completion */
-    c = ins_digraph();
-    if (c == NUL)
-      break;
-    goto normalchar;
+  case Ctrl_K: /* digraph: its two characters are the next keys, not to be
+                  mapped (see the top of this function) */
+    context->digraph = 1;
+    context->digraph_c1 = NUL;
+    ++no_mapping;
+    break;
 #endif
+
+  /*
+   * libvim: keyword completion (CTRL-N, CTRL-P) and the CTRL-X commands are
+   * not compiled in (FEAT_INS_EXPAND). vim without them inserts the key as
+   * a character, which no one typing CTRL-N wants in their text: say so
+   * instead, and insert nothing.
+   */
+  case Ctrl_N:
+  case Ctrl_P:
+  case Ctrl_X:
+    msg(_("Completion is not available"));
+    context->ctrlx = (c == Ctrl_X);
+    break;
+
   case Ctrl_L: /* Whole line completion after ^X */
   {
     /* CTRL-L with 'insertmode' set: Leave Insert mode */
