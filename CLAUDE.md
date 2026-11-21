@@ -434,6 +434,24 @@ are. vimango calls `vimUndoClear()` after every set and never
 `vimBufferSetLines()`. `vimUndoClear()` is `u_blockfree()` and
 `u_clearall()`, what `buf_reload()` does. Tests: `apitest/undo_redo.c`.
 
+### What `vimBufferSetLines()` looks after (2026-11)
+
+It changes the text under whatever is going on, so everything that holds a
+line number or a column from one key to the next has to be dealt with there
+(`libvim.c`): marks by `mark_adjust()`, which works on `curbuf` and so runs
+with `curbuf` switched; the cursor of every window on the buffer; `VIsual`;
+`Insstart`. What cannot be moved is dropped: a half-typed Normal mode
+command (`normal_cmd_forget_pending()`), and the copying a blockwise insert
+or change does when it ends, which compares `set_lines_count` with the
+value it started with (`ops.c`). **A new state that keeps positions of its
+own across keys needs one or the other**, and
+`apitest/compare/setlines_stress.exe` is how to find out that it does: run
+it under AddressSanitizer (vimango's `scripts/test-sanitized.sh` does) after
+a change to a state. The memline calls are upstream's, append and then
+delete, because `ml_delete` cannot take the last line; the marks are
+adjusted as if the first lines of the range had been replaced in place.
+Tests: `apitest/buffer_set_lines.c`.
+
 ### File writes can be turned off (2026-11)
 
 `vimSetFileWritesEnabled(FALSE)` makes vim write no file by any route; see

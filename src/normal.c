@@ -597,6 +597,32 @@ void start_normal_mode(normalCmd_T *context)
 #endif
 }
 
+/*
+ * libvim: the lines of the current buffer were set (vimBufferSetLines()).
+ * A Normal mode command that is half typed -- a count, a register, an
+ * operator waiting for its motion -- was typed for the text there was, and
+ * an operator holds positions in it ("d CTRL-V", then lines set, then a
+ * motion, read past the end of a line that had become shorter). It is
+ * forgotten, as <Esc> forgets it. Visual mode stays: its area is positions
+ * the caller can move.
+ * Nothing is done while another state is on top of Normal mode: Insert mode
+ * after "c" uses this state's oparg_T.
+ */
+void normal_cmd_forget_pending(void)
+{
+  sm_T *sm = sm_get_current();
+  normalCmd_T *context;
+
+  if (sm == NULL || sm->mode != NORMAL || sm->context == NULL)
+    return;
+  context = (normalCmd_T *)sm->context;
+  if (context->state == NORMAL_INITIAL && context->oap->op_type == OP_NOP && context->oap->regname == 0 && !finish_op)
+    return;
+  opcount = 0;
+  keep_reg = 0;
+  start_normal_mode(context);
+}
+
 void *state_normal_cmd_initialize()
 {
   normalCmd_T *context = (normalCmd_T *)alloc(sizeof(normalCmd_T));

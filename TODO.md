@@ -39,39 +39,22 @@ were recorded with it — what vim's own `last_pat_prog()` does for
 `'hlsearch'`. vimango calls both functions (`vim/search.go`). Tests belong in
 `apitest/search_highlights.c`.
 
-### 2. `vimBufferSetLines()` does not look after what the buffer has
+### 2. `vimBufferSetLines()` with nothing said about undo
 
-It appends and deletes lines and nothing else. vim's own `setbufline()` and
-`deletebufline()` save for undo, adjust marks and check the cursor.
+The cursor, the marks and the arguments were done 2026-11-21 (PATCHES.md).
+What is left of this entry:
 
-- **The cursor is left where it was.** Replace five lines with one while the
-  cursor is on line 5: the next command gives `E315: ml_get: invalid lnum: 5`
-  (then "cannot yank; delete anyway", `E470`). In Insert mode it is a read
-  past the end of a block — `utf_head_off()` from `getvcol()` from
-  `curs_columns()` in `state_edit_execute()`; AddressSanitizer reports a
-  heap-buffer-overflow. Proposed: `check_cursor()` for every window showing
-  the buffer.
-- **Marks are not adjusted**: `'a` afterwards gives `E19: Mark has invalid
-  line number`. Proposed: `mark_adjust()`, or `deleted_lines_mark()` /
-  `appended_lines_mark()`.
-- **Nothing is saved for undo, and the undo that exists goes stale**: `x`,
-  then `vimBufferSetLines()`, then `u` puts the old line back over the new
-  text; `.` after it gave `E440: undo line missing`. The embedder has to
-  say which it wants, and since 2026-11-16 can say either:
-  `vimUndoSaveRegion()` first (upstream's, tested in `apitest/undo_redo.c`)
-  or `vimUndoClear()` afterwards (PATCHES.md). What is left is the call made
-  with neither. It cannot clear the history itself: the lines saved by
-  `vimUndoSaveRegion()` are in it. It could tell that nothing was saved for
-  the lines it is about to change, and clear then; not tried.
-- **Arguments are not checked.** A negative `start` corrupts the buffer (a
-  line pointer that is not a string). `end < start` inserts and deletes
-  nothing. `start` past the end does nothing but still raises the changed
-  tick and sets `b_changed`.
-- **A buffer that has never been current takes nothing.** After
-  `vimBufferNew()` without `vimBufferSetCurrent()` the memline is not open;
-  the lines are dropped without a word, and the tick is raised.
-- A line containing `\n` is stored as one line with a NUL in it, as vim
-  stores a NUL read from a file. Worth a sentence in `libvim.h`.
+**Nothing is saved for undo, and the undo that exists goes stale**: `x`,
+then `vimBufferSetLines()`, then `u` puts the old line back over the new
+text, with the marks and the cursor the history remembers; `.` after it
+gave `E440: undo line missing`. The embedder has to say which it wants:
+`vimUndoSaveRegion()` first (upstream's, tested in `apitest/undo_redo.c`)
+or `vimUndoClear()` afterwards (PATCHES.md). What is left is the call made
+with neither. It cannot clear the history itself: the lines saved by
+`vimUndoSaveRegion()` are in it. It could tell that nothing was saved for
+the lines it is about to change, and clear then; not tried. vimango never
+calls `vimUndoSaveRegion()`: if that function went, the clear could move
+into `vimBufferSetLines()` and this entry with it.
 
 ### 3. CTRL-V, digits, then another key: the key is lost
 
@@ -84,6 +67,22 @@ does `vungetc(nc)`. The state knows which case it is at cleanup (`i > 0` and
 `nc != 0`); it has no way to say so yet.
 
 ## Crash, exit, hang
+
+### 4. CTRL-V CTRL-O in Insert mode, then `.`: the repeat does not end
+
+`i CTRL-V CTRL-O . <Esc>` inserts a literal CTRL-O and a dot. `.` in Normal
+mode then never returns: `./trace.exe i '<c-v>' '<c-o>' . '<esc>' .`. vim
+inserts the two characters again (`^O^O..`). The redo buffer holds the
+CTRL-O as it was typed, without the CTRL-V that vim's `AppendToRedobuffLit()`
+puts in front of a control character, so replaying it is CTRL-O and then
+`.`, which replays it again; the redo buffer was 768,000 bytes and growing
+when it was looked at. Presumably the literal state
+(`state_insert_literal.c`) hands the character to the insert without going
+through the code that quotes it; not looked at further. Other control
+characters typed with CTRL-V will be replayed as commands the same way.
+
+Found 2026-11-21 by `apitest/compare/setlines_stress.exe`, which leaves the
+pair out until this is fixed (a comment there says where).
 
 ### 7. Smaller
 
@@ -201,8 +200,9 @@ macOS SDK then reports `sprintf()` (`buffer.c` and others) as deprecated,
 under `-Werror`.
 
 On `8cca54f72`, macOS: no report from either sanitizer, in 70 test programs,
-2,626 cases and vimango's suite. `api_edges.exe` gives three, which are
-entries 2 (twice) and 14.
+2,626 cases and vimango's suite. `api_edges.exe` gave three: two were
+`vimBufferSetLines()` (done that day, PATCHES.md), and the one it still
+gives is entry 14.
 
 What is left is `./build-macos.sh --tests` and `./build-linux.sh --tests`
 themselves, which still link the ordinary library. An `--asan` option would

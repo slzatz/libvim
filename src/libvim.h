@@ -72,6 +72,24 @@ size_t vimBufferGetLineCount(buf_T *buf);
  * vimBufferSetLines(buf, 0, 2, ["abc"], 2); // Set line 1 to "abc", make line 2 empty
  * vimBufferSetLines(buf, 2, 2, ["abc"], 1); // Splice "abc" after the second line, pushing the existing lines from 3 on down
  *
+ * start past the last line is the last line, and so is an end of -1 or one
+ * past it; an end before the start is the start. A negative start, a
+ * negative count, or a buffer that has never been the current one (it has no
+ * lines yet) sets nothing, and is not counted as a change. A line is a
+ * string: a "\n" in one is kept in the line as vim keeps a NUL read from a
+ * file, and does not split it.
+ *
+ * The cursor and the marks go with their lines, as for vim's setbufline(),
+ * appendbufline() and deletebufline(). The first lines of the range are
+ * replaced one for one: a cursor or mark on one stays on it. Lines below the
+ * range move, and what is on them moves too. When the new lines are fewer,
+ * the lines left over are gone: a mark on one is no longer set, and the
+ * cursor goes to the line that followed them. The cursor is then brought
+ * inside the text, line and column, and so is the other end of a Visual
+ * area. A Normal mode command that is half typed - a count, a register, an
+ * operator waiting for its motion - is forgotten, and a blockwise insert or
+ * change in progress is not copied to the other lines of its block.
+ *
  * Nothing is saved for undo, and what the buffer already has saved is left
  * as it was, describing lines that are now gone or have moved: `u` after the
  * call puts a line of the old text over the new. So do one of two things.

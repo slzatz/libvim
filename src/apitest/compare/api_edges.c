@@ -6,9 +6,10 @@
  *
  * Nothing is asserted: the output is to be read. Each case runs in a child
  * process and is reported as "! HANG", "! CRASH signal <n>" or "! EXIT <n>"
- * if it ends that way. Several of these read memory they should not, which
- * shows only when libvim.a itself is built with AddressSanitizer (TODO.md
- * has the command).
+ * if it ends that way. What reads memory it should not shows only when
+ * libvim.a itself is built with AddressSanitizer (TODO.md has the command):
+ * the vimBufferSetLines() cases did until 2026-11-21, and the search
+ * highlights of no buffer still do.
  *
  *   ./api_edges.exe             every case
  *   ./api_edges.exe setlines    the cases whose name contains "setlines"

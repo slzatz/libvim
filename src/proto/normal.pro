@@ -1,6 +1,7 @@
 /* normal.c */
 
 void *state_normal_cmd_initialize();
+void normal_cmd_forget_pending(void);
 void state_normal_cmd_cleanup(void *ctx);
 executionStatus_T state_normal_cmd_execute(void *ctx, int key);
 int state_normal_pending_operator(void *ctx, pendingOp_T *pendingOp);

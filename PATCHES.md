@@ -717,6 +717,71 @@ is the fault, the `test_clear_undo_*` tests and the two beside them what the
 call does about it, and upstream's `test_undo_save` and `test_undo_sync` the
 other way of using `vimBufferSetLines()`, unchanged.
 
+## `vimBufferSetLines()` looks after the cursor and the marks
+
+Nov 2026.
+
+**Upstream behavior.** `vimBufferSetLines()` appended and deleted lines and
+looked at nothing else the buffer or a mode holds. vim's own `setbufline()`,
+`appendbufline()` and `deletebufline()` move the marks and the cursor.
+
+- The cursor stayed where it was. Five lines replaced by one with the cursor
+  on line 5: the next key gave `E315: ml_get: invalid lnum: 5`, and in Insert
+  mode read past the buffer's memory (AddressSanitizer: a
+  heap-buffer-overflow in `ins_char_bytes()`). On a line that was still
+  there but shorter, the column was past its end.
+- Marks stayed on their line numbers: `'a` gave `E19: Mark has invalid line
+  number`, or went to whatever line had that number now.
+- A negative `start` corrupted the buffer. A `start` past the end, or a
+  buffer that had never been current, set nothing and still raised the
+  changed tick and the modified flag.
+
+**This fork.**
+
+- **The cursor and the marks go with their lines.** The first lines of the
+  range are replaced one for one, and a cursor or mark on one stays. Lines
+  below the range move and take theirs along (`mark_adjust()`: named marks,
+  `'[` `']` `'<` `'>` `'.` `'^`, the jumplist and the changelist). When
+  the new lines are fewer, a mark on a line that went is not set any more
+  (`E20`), and the cursor goes to the line that followed. The cursor is
+  then brought inside the text. So a line spliced in above the cursor moves
+  the cursor down with its line, where it used to stay on its number; set
+  the cursor after the call if that is not wanted.
+- **What a mode holds.** The other end of a Visual area, and where the
+  insert started, are moved and brought inside the text as the cursor is. A
+  Normal mode command that is half typed — a count, a register, an operator
+  waiting for its motion — is forgotten, as `<Esc>` forgets it
+  (`normal_cmd_forget_pending()`, `normal.c`): the operator holds the
+  position it was typed at, and `d CTRL-V`, lines set, then a motion read
+  past the end of a line. A blockwise insert or change in progress
+  (`CTRL-V jj I`) is not copied to the other lines of its block when Insert
+  mode ends (`set_lines_count`, `ops.c`): the block is lines and columns of
+  the text there was, and copying gave `E315` for each of its lines that
+  was gone.
+- **Arguments.** `start` past the last line is the last line; `end` of -1,
+  or past it, is the last line; `end` before `start` is `start`. A negative
+  `start` or `count`, no lines to set and none to remove, or a buffer whose
+  memline is not open (`vimBufferNew()` without `vimBufferSetCurrent()`;
+  `setbufline()` refuses it too) do nothing and are not a change.
+- In a buffer that is not the current one the marks and the cursor it will
+  have again are adjusted the same way, and the context mark of the window
+  (`''`), which is the current buffer's, is left alone.
+
+Undo is as it was: see the section above. vimango calls `vimUndoClear()`
+after every set.
+
+**If you relied on the old behavior.** A line put in above the cursor now
+moves the cursor down with its text (vimango's `TestCommandLineAPI` put a
+line above an empty buffer's one line and expected to be on the new one).
+A call with `start` past the end now appends.
+
+**Tests.** `apitest/buffer_set_lines.c`, the twelve after
+`test_modified_is_set`. `apitest/compare/setlines_stress.exe` gives libvim
+keys and `vimBufferSetLines()` calls in a random order, each seed in a
+process of its own, and fails on `E315`, a cursor outside the buffer, a
+crash or a hang; it is what found the half-typed operator and the blockwise
+insert. Under AddressSanitizer, 5,000 seeds of 400 steps pass.
+
 ## The column wanted after `$` is the one the cursor went to
 
 Nov 2026.

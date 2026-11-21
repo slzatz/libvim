@@ -644,6 +644,15 @@ EXTERN pos_T saved_cursor /* w_cursor before formatting text. */
 /*
  * Stuff for insert mode.
  */
+/*
+ * How many times vimBufferSetLines() has changed the current buffer. A state
+ * that keeps line numbers and columns of its own from one key to the next
+ * -- the blockwise insert and change, which copy what was typed to the other
+ * lines of the block when Insert mode ends -- notes it when it starts, and
+ * knows by it that the text is no longer the text it measured.
+ */
+EXTERN long set_lines_count INIT(= 0);
+
 EXTERN pos_T Insstart; /* This is where the latest
 					 * insert/append mode started. */
 

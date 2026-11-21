@@ -20,6 +20,7 @@ cd src/apitest/compare
 ./compare.sh cases/normal.txt       # against vim: prints the cases that differ
 ./sweep.sh cases/sweep-ex.txt       # libvim alone: prints the cases that did not return
 ./api_edges.exe                     # the C API with arguments it does not expect
+./setlines_stress.exe               # keys and vimBufferSetLines() in a random order
 ./trace.exe d v j                   # one sequence, a step at a time
 ```
 
@@ -37,6 +38,7 @@ cd src/apitest/compare
 | `sweep.sh` | Runs probe alone and prints the cases that did not come back. `--all` prints everything. |
 | `trace.c` | One sequence, the state after every step. For a case the other two disagree on. |
 | `api_edges.c` | Calls the C API with bad line ranges, a buffer that is not current, a cursor the buffer has shrunk under. Prints; asserts nothing. |
+| `setlines_stress.c` | Keys and `vimBufferSetLines()` calls in a random order, 200 seeds of 400 steps unless told otherwise, each seed in a child process: to see that nothing is left holding a line or column the buffer no longer has. A seed fails on `E315`, an internal error, a cursor outside the buffer, a crash or a hang, and prints its steps; `-s <seed>` runs one and prints each step as it is taken; `STRESS_NO_SET=1` sets no lines, to tell what the keys do alone. Worth most against an instrumented library. |
 | `cases/` | The cases. `fixtures/` are files they read. |
 
 `compare.sh` and `sweep.sh` run everything in a temporary directory with
@@ -145,7 +147,8 @@ mode; `:append` and `:function` typed; `:redir`.
 A bad read inside libvim shows only if `libvim.a` itself is instrumented.
 vimango's `scripts/test-sanitized.sh` does that: it copies this checkout,
 builds the copy with AddressSanitizer (`--ubsan` for the other), and runs
-`sweep.sh` on every file in `cases/`, then `api_edges.exe`, against it, with
+`sweep.sh` on every file in `cases/`, then `setlines_stress.exe` and
+`api_edges.exe`, against it, with
 a report file for each process that had something said about it. By hand:
 TODO.md (entry 12) has the `make` line; build in a copy of the tree, and give
 the same `SANITIZER_CFLAGS` to the `make` line in `build.sh`, which links

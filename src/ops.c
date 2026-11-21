@@ -2551,6 +2551,7 @@ typedef struct
   char_u *newp;
   char_u *oldp;
   struct block_def bd;
+  long set_lines_count; /* the global, when the change began */
 } changeState_T;
 
 void *state_change_initialize(oparg_T *oap)
@@ -2560,6 +2561,7 @@ void *state_change_initialize(oparg_T *oap)
   context->pre_textlen = 0;
   context->pre_indent = 0;
   context->oap = oap;
+  context->set_lines_count = set_lines_count;
 
   context->l = oap->start.col;
   if (oap->motion_type == MLINE)
@@ -2619,9 +2621,11 @@ void state_change_cleanup(void *ctx)
   /*
    * In Visual block mode, handle copying the new text to all lines of the
    * block.
-   * Don't repeat the insert when Insert mode ended with CTRL-C.
+   * Don't repeat the insert when Insert mode ended with CTRL-C, or when
+   * the buffer's lines were set meanwhile: the block is lines and columns
+   * of the text there was.
    */
-  if (context->oap->block_mode && context->oap->start.lnum != context->oap->end.lnum && !got_int)
+  if (context->oap->block_mode && context->oap->start.lnum != context->oap->end.lnum && !got_int && context->set_lines_count == set_lines_count)
   {
     /* Auto-indenting may have changed the indent.  If the cursor was past
      * the indent, exclude that indent change from the inserted text. */
@@ -2698,6 +2702,7 @@ typedef struct
   colnr_T ind_pre;
   struct block_def bd;
   int is_append;  /* TRUE for OP_APPEND, FALSE for OP_INSERT */
+  long set_lines_count; /* the global, when the insert began */
 } insertState_T;
 
 void *state_insert_initialize(oparg_T *oap, long count1)
@@ -2707,6 +2712,7 @@ void *state_insert_initialize(oparg_T *oap, long count1)
 
   context->oap = oap;
   context->count1 = count1;
+  context->set_lines_count = set_lines_count;
   context->pre_textlen = 0;
   context->ind_pre = 0;
   context->is_append = (oap->op_type == OP_APPEND);
@@ -2816,8 +2822,10 @@ void state_insert_cleanup(void *ctx)
 
   /* If user has moved off this line, we don't know what to do, so do
    * nothing.
-   * Also don't repeat the insert when Insert mode ended with CTRL-C. */
-  if (curwin->w_cursor.lnum != context->oap->start.lnum || got_int)
+   * Also don't repeat the insert when Insert mode ended with CTRL-C, or
+   * when the buffer's lines were set meanwhile: the block is lines and
+   * columns of the text there was. */
+  if (curwin->w_cursor.lnum != context->oap->start.lnum || got_int || context->set_lines_count != set_lines_count)
   {
     vim_free(context);
     return;

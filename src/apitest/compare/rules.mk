@@ -6,4 +6,4 @@ COMPARE = apitest/compare
 $(COMPARE)/%.exe: $(COMPARE)/%.c libvim.a
 	$(CC) -I. $(ALL_CFLAGS) -g $< -o $@ libvim.a $(ALL_LIBS)
 
-compare-tools: $(COMPARE)/probe.exe $(COMPARE)/trace.exe $(COMPARE)/api_edges.exe
+compare-tools: $(COMPARE)/probe.exe $(COMPARE)/trace.exe $(COMPARE)/api_edges.exe $(COMPARE)/setlines_stress.exe

@@ -67,13 +67,68 @@ char_u *vimBufferGetLine(buf_T *buf, linenr_T lnum)
 
 size_t vimBufferGetLineCount(buf_T *buf) { return buf->b_ml.ml_line_count; }
 
+/*
+ * Where line "lnum" is once lines start+1 to end have become "count" lines:
+ * a line below them moves with the text, and one of those that went (the
+ * new lines are fewer) is where the line that followed them is now.
+ */
+static linenr_T setlines_moved(linenr_T lnum, linenr_T start, linenr_T end, int count)
+{
+  if (lnum > end)
+    return lnum + count - (end - start);
+  if (lnum > start + count)
+    return start + count + 1;
+  return lnum;
+}
+
+/*
+ * Bring "pos" inside the text of "buf". For the positions check_cursor()
+ * does not look at: the other end of the Visual area, where Insert mode
+ * started.
+ */
+static void setlines_check_pos(buf_T *buf, pos_T *pos)
+{
+  colnr_T len;
+
+  if (pos->lnum > buf->b_ml.ml_line_count)
+    pos->lnum = buf->b_ml.ml_line_count;
+  if (pos->lnum < 1)
+    pos->lnum = 1;
+  len = (colnr_T)STRLEN(ml_get_buf(buf, pos->lnum, FALSE));
+  if (pos->col > len)
+  {
+    pos->col = len;
+    pos->coladd = 0;
+  }
+  if (pos->col < 0)
+    pos->col = 0;
+  if (has_mbyte)
+    mb_adjustpos(buf, pos);
+}
+
 void vimBufferSetLines(buf_T *buf, linenr_T start, linenr_T end, char_u **lines, int count)
 {
-  int originalLineCount = vimBufferGetLineCount(buf);
-  if (end == -1)
-  {
+  buf_T *curbuf_save = curbuf;
+  linenr_T originalLineCount;
+  long delta; /* lines more than there were; negative when fewer */
+  tabpage_T *tp;
+  win_T *wp;
+
+  /* As for setbufline(): a buffer that was never loaded has no lines to
+   * set. Its memline is opened when it becomes current. */
+  if (buf == NULL || buf->b_ml.ml_mfp == NULL || start < 0 || count < 0 || (count > 0 && lines == NULL))
+    return;
+
+  originalLineCount = buf->b_ml.ml_line_count;
+  if (start > originalLineCount)
+    start = originalLineCount;
+  if (end == -1 || end > originalLineCount)
     end = originalLineCount;
-  }
+  if (end < start)
+    end = start;
+  if (count == 0 && end == start)
+    return;
+  delta = count - (end - start);
 
   // Append in reverse order... find more efficient strategy though
   // We append first, because `ml_delete_buf` can't delete the last line,
@@ -93,7 +148,76 @@ void vimBufferSetLines(buf_T *buf, linenr_T start, linenr_T end, char_u **lines,
     ml_delete_buf(buf, deleteStart, FALSE);
   }
 
-  changed_lines_buf(buf, start, end, (end - start) - count);
+  /*
+   * Marks go with their lines, as they do for setbufline(), appendbufline()
+   * and deletebufline(): the first lines of the range are replaced one for
+   * one and keep theirs, lines below the range move, and the lines that
+   * went, when the new ones are fewer, lose theirs. mark_adjust() works on
+   * curbuf; it also adjusts the context mark of curwin, which is another
+   * buffer's when "buf" is not the current one.
+   */
+  if (delta != 0)
+  {
+    pos_T pcmark = curwin->w_pcmark;
+    pos_T prev_pcmark = curwin->w_prev_pcmark;
+
+    curbuf = buf;
+    if (delta > 0)
+      mark_adjust(end + 1, (linenr_T)MAXLNUM, delta, 0L);
+    else
+      mark_adjust(start + count + 1, end, (long)MAXLNUM, delta);
+    curbuf = curbuf_save;
+    if (curwin->w_buffer != buf)
+    {
+      curwin->w_pcmark = pcmark;
+      curwin->w_prev_pcmark = prev_pcmark;
+    }
+  }
+
+  /*
+   * The cursor too, and then it is brought inside the text: left on a line
+   * that is gone, or past the end of one that is shorter now, the next key
+   * reads memory that is not the buffer's. mark_adjust() has moved the
+   * cursor of a window that is not the current one.
+   */
+  FOR_ALL_TAB_WINDOWS(tp, wp)
+  {
+    if (wp->w_buffer != buf)
+      continue;
+    if (wp == curwin)
+      wp->w_cursor.lnum = setlines_moved(wp->w_cursor.lnum, start, end, count);
+    if (wp->w_cursor.lnum > buf->b_ml.ml_line_count)
+      wp->w_cursor.lnum = buf->b_ml.ml_line_count;
+    if (wp->w_cursor.lnum < 1)
+      wp->w_cursor.lnum = 1;
+    check_cursor_col_win(wp);
+    if (wp->w_topline > buf->b_ml.ml_line_count)
+      wp->w_topline = buf->b_ml.ml_line_count;
+    changed_line_abv_curs_win(wp);
+    invalidate_botline_win(wp);
+  }
+  if (curbuf == buf)
+  {
+    /* What else holds a position in the text while a key is awaited. A
+     * blockwise insert or change holds more than can be moved (ops.c), and
+     * so does an operator waiting for its motion (normal.c). */
+    ++set_lines_count;
+    normal_cmd_forget_pending();
+    if (VIsual_active)
+    {
+      VIsual.lnum = setlines_moved(VIsual.lnum, start, end, count);
+      setlines_check_pos(buf, &VIsual);
+    }
+    if (State & INSERT)
+    {
+      Insstart.lnum = setlines_moved(Insstart.lnum, start, end, count);
+      setlines_check_pos(buf, &Insstart);
+      Insstart_orig.lnum = setlines_moved(Insstart_orig.lnum, start, end, count);
+      setlines_check_pos(buf, &Insstart_orig);
+    }
+  }
+
+  changed_lines_buf(buf, start + 1, end + 1, delta);
 
   ++CHANGEDTICK(buf);
   buf->b_changed = TRUE;
