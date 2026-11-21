@@ -49,39 +49,71 @@ static size_t key_name_len(const char *s)
   return (*p == '>' && p > s + 1) ? (size_t)(p - s) + 1 : 0;
 }
 
+/* What is left of the case being typed: the keys not yet given to vim. */
+static const char *rest = "";
+
 static void type(const char *s)
 {
   char buf[64];
 
-  while (*s)
+  rest = s;
+  while (*rest)
   {
     size_t n;
 
-    if (strncmp(s, "{TO}", 4) == 0)
+    if (strncmp(rest, "{TO}", 4) == 0)
     {
+      rest += 4;
       vimInputTimeout();
-      s += 4;
       continue;
     }
 
-    n = key_name_len(s);
+    /* "rest" moves on before the key is given: a key can ask for more (the
+     * answers to ":s///c", below) and takes them from there. */
+    n = key_name_len(rest);
     if (n > 0 && n < sizeof(buf))
     {
-      memcpy(buf, s, n);
+      memcpy(buf, rest, n);
       buf[n] = 0;
+      rest += n;
       vimKey((char_u *)buf);
-      s += n;
       continue;
     }
 
-    n = (size_t)(*mb_ptr2len)((char_u *)s);
+    n = (size_t)(*mb_ptr2len)((char_u *)rest);
     if (n == 0 || n >= sizeof(buf))
       n = 1;
-    memcpy(buf, s, n);
+    memcpy(buf, rest, n);
     buf[n] = 0;
+    rest += n;
     vimInput((char_u *)buf);
-    s += n;
   }
+}
+
+/*
+ * ":s" with the "c" flag asks the embedder for each answer. In vim the keys
+ * that follow the command are the answers -- the oracle gives the whole case
+ * to feedkeys() -- so here the next key of the case is, and <Esc> when there
+ * is none, as when feedkeys() runs out.
+ */
+static int confirm_from_case(linenr_T lnum, colnr_T col, linenr_T endLnum, colnr_T endCol, char_u *sub)
+{
+  size_t n = key_name_len(rest);
+
+  if (*rest == 0 || strncmp(rest, "{TO}", 4) == 0)
+    return ESC;
+  if (n > 0)
+  {
+    int key = ESC; /* a <name> that is not an answer stops, as any is */
+
+    if (strncasecmp(rest, "<c-c>", n) == 0)
+      key = Ctrl_C;
+    else if (strncasecmp(rest, "<cr>", n) == 0)
+      key = CAR;
+    rest += n;
+    return key;
+  }
+  return *rest++;
 }
 
 static void run_case(const char *line)
@@ -93,6 +125,7 @@ static void run_case(const char *line)
 
   vimInit(0, NULL);
   vimSetMessageCallback(onMessage);
+  vimSetSubstituteConfirmCallback(confirm_from_case);
   buf = vimBufferNew(0);
   vimBufferSetCurrent(buf);
   vimBufferSetLines(buf, 0, -1, (char_u **)lines, 5);

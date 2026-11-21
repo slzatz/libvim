@@ -4624,7 +4624,6 @@ void do_sub(exarg_T *eap)
   int sublen;
   int got_quit = FALSE;
   int got_match = FALSE;
-  int temp;
   int which_pat;
   char_u *cmd;
   int save_State;
@@ -4845,14 +4844,6 @@ void do_sub(exarg_T *eap)
   }
   if (subflags.do_count)
     subflags.do_ask = FALSE;
-
-  // HACK: For now, instead of hanging / hitting a block input path... at least let the user know what went wrong.
-  // Next step: Implement a state machine so we can handle confirm without blocking.
-  if (subflags.do_ask)
-  {
-    emsg("libvim: Confirm flag (c) is not currently supported for substitution.");
-    return;
-  }
 
   save_do_all = subflags.do_all;
   save_do_ask = subflags.do_ask;
@@ -5153,15 +5144,7 @@ void do_sub(exarg_T *eap)
             {
               char_u *orig_line = NULL;
               int len_change = 0;
-#ifdef FEAT_FOLDING
-              int save_p_fen = curwin->w_p_fen;
-
-              curwin->w_p_fen = FALSE;
-#endif
-              /* Invert the matched string.
-			     * Remove the inversion afterwards. */
-              temp = RedrawingDisabled;
-              RedrawingDisabled = 0;
+              linenr_T match_lines = regmatch.endpos[0].lnum - regmatch.startpos[0].lnum;
 
               if (new_start != NULL)
               {
@@ -5192,46 +5175,44 @@ void do_sub(exarg_T *eap)
                 }
               }
 
-              search_match_lines = regmatch.endpos[0].lnum - regmatch.startpos[0].lnum;
-              search_match_endcol = regmatch.endpos[0].col + len_change;
-              highlight_match = TRUE;
-
-              update_topline();
-              validate_cursor();
-              update_screen(SOME_VALID);
-              highlight_match = FALSE;
-              redraw_later(SOME_VALID);
-
-#ifdef FEAT_FOLDING
-              curwin->w_p_fen = save_p_fen;
-#endif
-              if (msg_row == Rows - 1)
-                msg_didout = FALSE; /* avoid a scroll-up */
-              msg_starthere();
-              i = msg_scroll;
-              msg_scroll = 0; /* truncate msg when
-							   needed */
-              msg_no_more = TRUE;
-              /* write message same highlighting as for
-			     * wait_return */
-              smsg_attr(HL_ATTR(HLF_R),
-                        _("replace with %s (y/n/a/q/l/^E/^Y)?"), sub);
-              msg_no_more = FALSE;
-              msg_scroll = i;
-              showruler(TRUE);
-              windgoto(msg_row, msg_col);
-              RedrawingDisabled = temp;
-
-              ++no_mapping; /* don't map this key */
-              ++allow_keys; /* allow special keys */
-              typed = plain_vgetc();
-              --allow_keys;
-              --no_mapping;
-
-              /* clear the question */
-              msg_didout = FALSE; /* don't scroll up */
-              msg_col = 0;
-              gotocmdline(TRUE);
+              /*
+               * libvim: the question. vim draws the window with the match
+               * highlighted, writes "replace with %s (y/n/a/q/l/^E/^Y)?" and
+               * waits in plain_vgetc() for the key. There is no window here
+               * and no key can arrive during a call, so the embedder is
+               * asked: substituteConfirmCallback is given the match and
+               * returns the key, having waited for the user itself. While it
+               * does, the buffer and the cursor are what vim would be
+               * showing: the changes accepted so far, the line of the match
+               * included, and the cursor on the match.
+               *
+               * Keys that are already there are the answer first, as they
+               * are in vim: the rest of a mapping, of a ":normal", of a
+               * register being run. Inside ":normal" they are the only
+               * answer -- when they run out vgetc() gives <Esc>, which
+               * quits. And CTRL-C that came while the next match was being
+               * looked for (vimInterrupt()) quits without a question.
+               */
+              if (got_int)
+                typed = Ctrl_C;
+              else if (ex_normal_busy > 0 || typebuf.tb_len > 0 || !stuff_empty() || vungetc_pending())
+              {
+                ++no_mapping; /* don't map this key */
+                ++allow_keys; /* allow special keys */
+                typed = plain_vgetc();
+                --allow_keys;
+                --no_mapping;
+              }
+              else if (substituteConfirmCallback != NULL)
+                typed = substituteConfirmCallback(
+                    lnum, curwin->w_cursor.col, lnum + match_lines,
+                    regmatch.endpos[0].col + (match_lines == 0 ? len_change : 0),
+                    sub);
+              else
+              {
+                emsg("libvim: :s with the c flag has nobody to ask (vimSetSubstituteConfirmCallback)");
+                typed = ESC;
+              }
 
               /* restore the line */
               if (orig_line != NULL)

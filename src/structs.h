@@ -205,6 +205,14 @@ typedef void (*TerminalCallback)(terminalRequest_t *terminalRequest);
 typedef void (*ClearCallback)(clearRequest_T clearInfo);
 typedef int (*GotoCallback)(gotoRequest_T gotoInfo);
 typedef void (*ScrollCallback)(scrollDirection_T dir, long count);
+
+/* ":s" with the "c" flag asks about one match: from byte col of lnum up to,
+ * not including, byte endCol of endLnum; sub is the replacement as it was
+ * typed. The answer is the key the user gave. See
+ * vimSetSubstituteConfirmCallback(). */
+typedef int (*SubstituteConfirmCallback)(linenr_T lnum, colnr_T col,
+                                         linenr_T endLnum, colnr_T endCol,
+                                         char_u *sub);
 typedef int (*TabPageCallback)(tabPageRequest_T tabPageInfo);
 
 // Return OK on success, FAIL on failure

@@ -203,6 +203,14 @@ wg#D
 :%s/a/X/gc<cr>a
 :%s/a/X/gc<cr>q
 :s/a/X/c<cr><esc>
+:%s/a/X/gc<cr>ynyl
+:%s/a/X/gc<cr>nny<esc>
+:%s/a/X/gc<cr>xy<c-c>
+:%s/a/aaa/gc<cr>yynq
+:%s/e\nb/Z/c<cr>y
+:%s/e/[&]\r/gc<cr>yn
+:g/a/s//X/c<cr>yn
+:%s/a/X/gc<cr>yq:&&<cr>y
 :s<cr>
 :s/a<cr>
 :s/a/<cr>

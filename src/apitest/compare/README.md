@@ -86,7 +86,7 @@ For `compare.sh`, with the number that differed on 2026-11-12 (macOS, vim
 |---|---|---|
 | `cases/normal.txt` | 337 | 23 |
 | `cases/insert.txt` | 216 | 58; 38 on 2026-11-20, with CTRL-K, CTRL-\ and CTRL-X (PATCHES.md) — what is left of those keys is completion itself |
-| `cases/cmdline.txt` | 215 | 21; 20 on 2026-11-20 |
+| `cases/cmdline.txt` | 215 | 21; 20 on 2026-11-20; 24 of 223 on 2026-11-21, with eight more `:s///c` cases, of which six differ for the comparison's own reason below |
 | `cases/ex.txt` | 364 | 33 |
 | `cases/ctrl-o-forced-motion.txt` | 155 | 2 |
 | `cases/curswant.txt` (added 2026-11-16, with the fixes it is for) | 60 | 0 |
@@ -115,6 +115,12 @@ by `feedkeys()`, and it is a later vim than libvim's 8.1.
   left where it was. End the case with `<esc>` if the column matters.
 - **`<Esc>` on a command line** given by `feedkeys()` *runs* it. `/two<esc>D`
   and `i<c-o>:<esc>X<esc>` differ for that alone; libvim is right.
+- **`:s` with the `c` flag** is answered in silent Ex mode as Ex answers it,
+  a line for each match: all the keys after the command are the first
+  answer. A case with more than one answer differs for that alone. The probe
+  answers each question with the next key of the case, as vim does when it
+  is not in Ex mode; to see that, run `vim-oracle.sh` with `-es` changed to
+  `--not-a-term`.
 - Silent Ex mode has **no `'incsearch'`**, so CTRL-G, CTRL-T and CTRL-L on a
   search line are characters there.
 - **vim's undo history includes the lines that set the buffer up**: `u`,
@@ -134,8 +140,7 @@ by `feedkeys()`, and it is a later vim than libvim's 8.1.
 **libvim's, on purpose.** Scrolling is the embedder's (CTRL-D, CTRL-F,
 CTRL-E, `<PageDown>` do not move the cursor without a scroll callback), as
 are windows (`CTRL-W n`). Completion (CTRL-N, CTRL-P, CTRL-X) and digraphs
-(CTRL-K) are not compiled in. `:s` with the `c` flag is refused, and
-`input()` returns nothing.
+(CTRL-K) are not compiled in. `input()` returns nothing.
 
 **libvim's, and in TODO.md.** `gq`, `gw` and `!` with no format callback;
 `@:` and command-line history; `feedkeys()`; `gH`; `0 CTRL-D`;

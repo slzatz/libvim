@@ -661,6 +661,11 @@ void vimSetSpellSuggestCallback(VoidCallback callback)
   spellSuggestCallback = callback;
 }
 
+void vimSetSubstituteConfirmCallback(SubstituteConfirmCallback callback)
+{
+  substituteConfirmCallback = callback;
+}
+
 int vimSpellGetSuggestions(char_u **badWord, int *num_suggestions, char_u ***suggestions)
 {
   garray_T ga;

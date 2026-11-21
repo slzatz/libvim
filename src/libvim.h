@@ -602,6 +602,42 @@ int vimSpellGetSuggestions(char_u **badWord, int *num_suggestions, char_u ***sug
 void vimSetSpellSuggestCallback(VoidCallback callback);
 
 /***
+ * Substitute
+ */
+
+/*
+ * vimSetSubstituteConfirmCallback
+ *
+ * ":s/pat/sub/c" asks before each change. vim highlights the match, writes
+ * "replace with sub (y/n/a/q/l/^E/^Y)?" and waits for a key; libvim calls
+ * this instead, once for each match, and the key the callback returns is the
+ * answer:
+ *
+ *   'y'  change this match        'n'  leave it
+ *   'a'  this and all the rest    'l'  this one, and stop
+ *   'q', <Esc> (27), CTRL-C (3)   stop; what was accepted stays
+ *
+ * Any other key and the callback is called again for the same match.
+ *
+ * **This is the one callback that waits for the user**: the call that ran
+ * the command -- vimInput(), vimKey(), vimExecute() -- does not return until
+ * every match has its answer, and the embedder reads the key itself, however
+ * it reads keys. While it waits it may read anything: the buffer and the
+ * cursor are what vim would be showing, with the changes accepted so far in
+ * place (also in the line of the match, which is why the columns are for
+ * that line as it is now) and the cursor on the match; search highlights and
+ * spelling can be asked for. It must not send keys, run a command or change
+ * the buffer. vimInterrupt() during the wait is not an answer -- return
+ * CTRL-C for that.
+ *
+ * Not asked: when keys are already waiting they are the answer, as in vim
+ * (the rest of a mapping, of ":normal"), and inside ":normal" keys that run
+ * out quit, as <Esc> does. With no callback set the command is an error at
+ * the first match that would be asked about.
+ */
+void vimSetSubstituteConfirmCallback(SubstituteConfirmCallback callback);
+
+/***
  * Terminal
  */
 

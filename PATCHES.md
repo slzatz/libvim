@@ -324,7 +324,7 @@ message. A callback that treats every `MSG_INFO` as one line of text will meet
 line breaks.
 
 **Known gaps.** Columns are laid out for `Columns` cells (`:registers`
-truncates there). `:s` with the `c` flag still has no prompt.
+truncates there).
 
 **Tests.** `apitest/listings.c`.
 
@@ -1006,6 +1006,74 @@ completion itself, which would need the embedder to draw its menu.
 Insert mode still wins: the message is only for the unmapped key.
 
 **Tests.** `apitest/digraph.c`, `apitest/insert_ctrl_bsl.c`. `apitest/compare`: 38 Insert-mode cases differ from vim (58 on 2026-11-12), and what is left of these keys among them is completion itself; Normal, Ex and the rest are as before, and both sweeps come back.
+
+## `:s` with the `c` flag asks the embedder: `vimSetSubstituteConfirmCallback()`
+
+Nov 2026.
+
+**Upstream behavior.** `:s/pat/sub/c` was refused: "libvim: Confirm flag (c)
+is not currently supported for substitution". vim shows each match, writes
+`replace with sub (y/n/a/q/l/^E/^Y)?` and waits in `plain_vgetc()` for the
+answer; in libvim nothing is shown and a key cannot arrive during a call.
+Upstream's note was to make `do_sub()` a state that returns for each key.
+That cannot be done for more than a `:s` typed by itself: whatever ran the
+command — the rest of a line after `|`, `:g`, a function, a mapping — goes on
+when `do_sub()` returns, before the answers.
+
+**This fork.** vim's loop is kept, and where it read the key it calls the
+embedder:
+
+```c
+typedef int (*SubstituteConfirmCallback)(linenr_T lnum, colnr_T col,
+                                         linenr_T endLnum, colnr_T endCol,
+                                         char_u *sub);
+void vimSetSubstituteConfirmCallback(SubstituteConfirmCallback callback);
+```
+
+The callback is given one match — from byte `col` of `lnum` up to, not
+including, byte `endCol` of `endLnum` — and the replacement as it was typed,
+and returns the key the user answered with: `y`, `n`, `a` (this and all the
+rest), `l` (this one and stop), or `q`, `<Esc>`, CTRL-C to stop. For any other
+key it is called again.
+
+- **It is the one callback that waits for the user.** The `vimInput()`,
+  `vimKey()` or `vimExecute()` that ran the command returns when every match
+  has its answer, and the embedder reads the key itself. Everything else
+  about "nothing waits for a key" stands: this is not a reader inside libvim
+  waiting for a key that cannot come, it is the embedder being asked.
+- While it is asked the embedder may read anything. The buffer and the cursor
+  are what vim would be showing: the changes accepted so far are in place —
+  in the line of the match too, which `do_sub()` puts there for the length of
+  the question, so the columns are that line's as it reads then — and the
+  cursor is on the match. It must not send keys, run a command or change the
+  buffer.
+- **Keys already typed answer first**, as in vim: the rest of a mapping
+  (`:nnoremap Q :%s/a/b/gc<CR>yn`), of a `:normal`, of a register being run.
+  Inside `:normal` they are the only answer; when they run out the answer is
+  `<Esc>`, as it is in vim.
+- CTRL-C while the next match is being looked for (`vimInterrupt()`) stops
+  the command without another question. During a question it is the
+  embedder's to return CTRL-C.
+- By every route: typed, under `:g`, before `| command`, in a function, from
+  a mapping, and `:&&`, which keeps the flag. One `u` undoes all that was
+  accepted.
+- vim's own prompt is not sent to the message callback, and nothing is
+  drawn: the embedder writes the question.
+- With no callback set, the command is an error at the first match there
+  would be a question about, and changes nothing.
+
+Not done: CTRL-E and CTRL-Y at the question (vim scrolls; here they are other
+keys, and the embedder that scrolls can do it before it answers). An answer
+given through the callback is not recorded into a register being recorded
+with `q`.
+
+**If you relied on the old behavior.** A `:s///c` that was refused now asks,
+or with no callback fails with another error.
+
+**Tests.** `apitest/substitute_confirm.c`. `apitest/compare`: the probe
+answers from the rest of its case; thirteen cases end as they do in vim 9.1
+run outside Ex mode (see its README for why `compare.sh` itself differs on
+six of them).
 
 ## Other changes
 
