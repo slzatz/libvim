@@ -142,7 +142,11 @@ mode; `:append` and `:function` typed; `:redir`.
 
 ## With AddressSanitizer
 
-A bad read inside libvim shows only if `libvim.a` itself is instrumented;
-TODO.md (entry 12) has the `make` line. Build that library somewhere else — a
-copy of `src/` — and link these programs against it by hand: `build.sh`
-links the one in `src/`.
+A bad read inside libvim shows only if `libvim.a` itself is instrumented.
+vimango's `scripts/test-sanitized.sh` does that: it copies this checkout,
+builds the copy with AddressSanitizer (`--ubsan` for the other), and runs
+`sweep.sh` on every file in `cases/`, then `api_edges.exe`, against it, with
+a report file for each process that had something said about it. By hand:
+TODO.md (entry 12) has the `make` line; build in a copy of the tree, and give
+the same `SANITIZER_CFLAGS` to the `make` line in `build.sh`, which links
+the library in `src/`.

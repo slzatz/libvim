@@ -177,7 +177,7 @@ which is what `sm_execute_normal()` does for `:normal`.
 
 ## Tests and tooling
 
-### 12. The tests do not instrument libvim
+### 12. The fork's own test run does not instrument libvim
 
 The test rule compiles the *test file* with `-fsanitize=address
 -fsanitize=undefined` and links the ordinary `libvim.a`, so a bad read
@@ -185,21 +185,29 @@ inside libvim is seen only if it happens to pass through an intercepted
 libc call. The first bullet of entry 2 was found only with the library
 instrumented.
 
-An instrumented library builds as it is:
+Since 2026-11-21 vimango's `scripts/test-sanitized.sh` does the instrumented
+run, and is the thing to run after a change here: it copies this checkout
+(uncommitted changes included), builds the copy with
 
 ```bash
-cd src
 make libvim.a SANITIZER_CFLAGS="-g -O1 -fsanitize=address \
   -fno-omit-frame-pointer -Wno-deprecated-declarations"
 ```
 
-The last flag is needed because AddressSanitizer turns `_FORTIFY_SOURCE`
-off, and the macOS SDK then reports `sprintf()` (`buffer.c` and others) as
-deprecated, under `-Werror`. All 67 tests passed against such a library on
-2026-11-12, with no report. Proposed: an `--asan` option for the build
-scripts that builds into a second objects directory and runs the suite
-against it. UndefinedBehaviorSanitizer on the library was not tried; vim's
-older code will have a good deal to say.
+(or `-fsanitize=undefined`, with `--ubsan`), and runs the API tests, every
+file in `apitest/compare/cases` and vimango's Go suite against it. The last
+flag is needed because AddressSanitizer turns `_FORTIFY_SOURCE` off, and the
+macOS SDK then reports `sprintf()` (`buffer.c` and others) as deprecated,
+under `-Werror`.
+
+On `8cca54f72`, macOS: no report from either sanitizer, in 70 test programs,
+2,626 cases and vimango's suite. `api_edges.exe` gives three, which are
+entries 2 (twice) and 14.
+
+What is left is `./build-macos.sh --tests` and `./build-linux.sh --tests`
+themselves, which still link the ordinary library. An `--asan` option would
+need a second objects directory, and the Makefile names `objects/` in every
+rule; a copy of the tree, as vimango's script makes, is the cheap way.
 
 ### 13. The fork has no CI
 
